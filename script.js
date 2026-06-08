@@ -3,6 +3,30 @@ let checkins = JSON.parse(localStorage.getItem("checkins")) || [];
 
 const defaultUsers = ["Joe", "Teagan", "Emma", "Lisi", "Coco"];
 
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyBVTxlZQxLL5SLWqKYpzv0HXd-6wByCAOQ",
+    authDomain: "kai-ke-fit-dashboard.firebaseapp.com",
+    projectId: "kai-ke-fit-dashboard",
+    storageBucket: "kai-ke-fit-dashboard.firebasestorage.app",
+    messagingSenderId: "585365049265",
+    appId: "1:585365049265:web:6b4c7468627d0dba94b790",
+    measurementId: "G-T5E7VSDKN3"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
+
 if (users.length === 0) {
   users = defaultUsers.map(name => ({
     id: crypto.randomUUID(),
