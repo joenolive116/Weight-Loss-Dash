@@ -581,6 +581,17 @@ textarea { min-height: 92px; resize: vertical; }
   .map-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- Admin gating ---------- */
+html:not([data-admin="true"]) .admin-only { display: none !important; }
+html[data-admin="true"] .guest-only { display: none !important; }
+.btn-inline { width: auto; }
+.admin-login-row { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.admin-login-row input { flex: 1; min-width: 180px; }
+.admin-login-row .btn-inline { display: inline-flex; align-items: center; }
+.admin-on { color: var(--lime); }
+#goImportBtn { gap: 8px; }
+#goImportBtn .nav-ico { font-size: 14px; }
+
 /* ---------- Settings ---------- */
 .setting-row {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
