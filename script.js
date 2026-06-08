@@ -29,12 +29,18 @@ let users = [];
 let checkins = [];
 let currentWinIndex = 0;
 
-window.showPage = function(pageId) {
-  document.querySelectorAll(".page").forEach(page => page.classList.remove("active"));
+function showPage(pageId) {
+  document.querySelectorAll(".page").forEach(page => {
+    page.classList.remove("active");
+  });
+
   document.getElementById(pageId).classList.add("active");
+
   renderUsers();
   renderDashboard();
-};
+}
+
+window.showPage = showPage;
 
 function getMonthKey(dateString) {
   const date = new Date(dateString);
