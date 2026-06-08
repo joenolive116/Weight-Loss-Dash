@@ -430,17 +430,10 @@ function updateLivePoints() {
   if ($("workout")?.checked) p++;
   if ($("diet")?.checked) p++;
   if ($("wonDay")?.checked) p++;
-  const steps = Number($("stepCount")?.value) || 0;
-  const sp = Math.floor(steps / 1000);
-  p += sp;
   $("livePoints").textContent = p;
-  const fb = $("stepFeedback");
-  if (fb) {
-    fb.textContent = steps > 0 ? `${steps.toLocaleString()} steps = ${sp} point${sp === 1 ? "" : "s"}` : "";
-  }
 }
-["workout", "diet", "wonDay", "stepCount"].forEach((id) =>
-  $(id)?.addEventListener("input", updateLivePoints)
+["workout", "diet", "wonDay"].forEach((id) =>
+  $(id)?.addEventListener("change", updateLivePoints)
 );
 
 function updateUserStatus() {
@@ -524,7 +517,6 @@ $("checkinForm").addEventListener("submit", async (e) => {
         workout: $("workout").checked,
         diet: $("diet").checked,
         wonDay: $("wonDay").checked,
-        steps: Number($("stepCount").value) || 0,
         win: $("dailyWin").value.trim(),
         imageName,
         imageUrl,
@@ -534,7 +526,6 @@ $("checkinForm").addEventListener("submit", async (e) => {
       $("checkinForm").reset();
       $("imagePreview").hidden = true;
       $("fileHint").textContent = "Tap to attach a progress pic";
-      $("stepFeedback").textContent = "";
       updateLivePoints();
       updateUserStatus();
       toast("Check-in submitted 💪");
