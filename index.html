@@ -15,7 +15,7 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">KK</div>
+        <div class="brand-mark">F4K</div>
         <div class="brand-text">
           <span class="brand-name">Fit 4 The Kingdom</span>
           <span class="brand-sub">Competition</span>
@@ -31,6 +31,9 @@
         </button>
         <button class="nav-btn" data-page="newUser">
           <span class="nav-ico">◎</span> Members
+        </button>
+        <button class="nav-btn" data-page="import">
+          <span class="nav-ico">⇪</span> Import
         </button>
       </nav>
 
@@ -150,6 +153,13 @@
             </div>
 
             <label class="field">
+              <span class="field-label">Steps today <span class="step-hint">1,000 steps = 1 pt</span></span>
+              <input type="number" id="stepCount" min="0" step="1" inputmode="numeric"
+                     placeholder="e.g. 8500 — from Step Up, Apple Health, Fitbit…" />
+              <span class="step-feedback" id="stepFeedback"></span>
+            </label>
+
+            <label class="field">
               <span class="field-label">One win from today</span>
               <textarea id="dailyWin" placeholder="e.g. Chose water over soda, hit my step goal..."></textarea>
             </label>
@@ -213,8 +223,57 @@
         </div>
       </section>
 
+      <!-- IMPORT -->
+      <section id="import" class="page">
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Bulk Sync</span>
+            <h2>Import Steps</h2>
+            <p>Drop a Step Up CSV export and log everyone’s steps at once.</p>
+          </div>
+        </header>
+
+        <div class="form-card">
+          <div class="file-drop" id="csvDrop">
+            <input type="file" id="csvUpload" accept=".csv,text/csv" />
+            <span class="file-hint" id="csvHint">Tap to choose your Step Up CSV export</span>
+          </div>
+          <p class="import-note">In Step Up: <b>Settings → Manage Groups</b> (or long-press the group name) → export a report for your date range, then upload the file here.</p>
+        </div>
+
+        <div id="importConfig" class="panel" hidden>
+          <div class="panel-head"><h3>Map Columns</h3><span class="hint" id="formatTag"></span></div>
+          <label class="toggle wide-toggle">
+            <input type="checkbox" id="wideMode" />
+            <span class="toggle-box">▦</span>
+            <span class="toggle-text">Wide format — one column per date (steps spread across date columns)</span>
+          </label>
+          <div class="map-grid">
+            <label class="field"><span class="field-label">Name column</span><select id="mapName"></select></label>
+            <label class="field" id="mapDateWrap"><span class="field-label">Date column</span><select id="mapDate"></select></label>
+            <label class="field" id="mapStepsWrap"><span class="field-label">Steps column</span><select id="mapSteps"></select></label>
+          </div>
+          <div class="import-options">
+            <label class="opt"><input type="checkbox" id="createMissing" checked /> Create members not already in the roster</label>
+            <label class="opt">If a day is already logged:
+              <select id="dupeMode">
+                <option value="skip">Skip it</option>
+                <option value="overwrite">Overwrite the step count</option>
+              </select>
+            </label>
+          </div>
+          <button id="previewBtn" class="primary-btn"><span>Preview Import</span></button>
+        </div>
+
+        <div id="importPreview" class="panel" hidden>
+          <div class="panel-head"><h3>Preview</h3><span class="hint" id="previewSummary"></span></div>
+          <div id="previewTable" class="preview-table"></div>
+          <button id="runImportBtn" class="primary-btn"><span>Import <span id="importCount">0</span> Entries</span></button>
+        </div>
+      </section>
     </main>
   </div>
+
 
   <!-- Toast + confirm modal -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
