@@ -41,6 +41,11 @@ let currentWinIndex = 0;
 let currentWins = [];
 let currentPage = "dashboard";
 
+// ⚠️ Change this passcode to your own. Note: this is a soft gate (the code is
+// visible in this file). For real enforcement, use Firebase Auth + Security Rules.
+const ADMIN_CODE = "kingdom2026";
+const isAdmin = () => document.documentElement.dataset.admin === "true";
+
 /* ---------------- Helpers ---------------- */
 const $ = (id) => document.getElementById(id);
 const monthKey = (d) => {
@@ -102,6 +107,7 @@ function checkedInToday(userId) {
 
 /* ---------------- Navigation ---------------- */
 function showPage(pageId) {
+  if (pageId === "import" && !isAdmin()) pageId = "settings";
   currentPage = pageId;
   document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
   $(pageId)?.classList.add("active");
@@ -358,7 +364,7 @@ function renderUsers() {
               <span class="mini-avatar">${initials(u.name)}</span>
               <span class="uname">${escapeHtml(u.name)}</span>
               <span class="user-meta"><b>${st.points}</b> pts · 🔥${st.streak}</span>
-              <button class="del-btn" data-del-user="${u.id}" title="Remove member">✕</button>
+              <button class="del-btn admin-only" data-del-user="${u.id}" title="Remove member">✕</button>
             </div>`;
           })
           .join("")
@@ -366,6 +372,7 @@ function renderUsers() {
 
     list.querySelectorAll("[data-del-user]").forEach((btn) =>
       btn.addEventListener("click", () => {
+        if (!isAdmin()) return;
         const u = userById(btn.dataset.delUser);
         confirmAction(
           "Remove member?",
@@ -408,19 +415,20 @@ function renderHistory() {
               <span class="badge ${c.diet ? "on" : ""}">🥗</span>
               <span class="badge ${c.wonDay ? "on" : ""}">🏆</span>
             </div>
-            <button class="del-btn" data-del-checkin="${c.id}" title="Delete check-in">🗑</button>
+            <button class="del-btn admin-only" data-del-checkin="${c.id}" title="Delete check-in">🗑</button>
           </div>`;
         })
         .join("")
     : `<div class="empty">No check-ins yet.</div>`;
 
   el.querySelectorAll("[data-del-checkin]").forEach((btn) =>
-    btn.addEventListener("click", () =>
+    btn.addEventListener("click", () => {
+      if (!isAdmin()) return;
       confirmAction("Delete check-in?", "This permanently removes the entry and its points.", async () => {
         await deleteDoc(doc(db, "checkins", btn.dataset.delCheckin));
         toast("Check-in deleted");
-      })
-    )
+      });
+    })
   );
 }
 
@@ -841,6 +849,33 @@ function renderAll() {
   renderHistory();
   renderDashboard();
 }
+
+/* ---------------- Admin ---------------- */
+function setAdmin(on) {
+  document.documentElement.dataset.admin = on ? "true" : "false";
+  try { localStorage.setItem("f4k-admin", on ? "1" : "0"); } catch (e) { /* storage blocked */ }
+  // If a guest somehow sits on the import page, bounce them out on logout
+  if (!on && currentPage === "import") showPage("settings");
+}
+
+$("adminLoginBtn")?.addEventListener("click", () => {
+  const code = $("adminCode").value;
+  if (code === ADMIN_CODE) {
+    setAdmin(true);
+    $("adminCode").value = "";
+    toast("Logged in as admin ✓");
+  } else {
+    toast("Incorrect passcode", true);
+  }
+});
+$("adminCode")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("adminLoginBtn").click(); }
+});
+$("adminLogoutBtn")?.addEventListener("click", () => {
+  setAdmin(false);
+  toast("Logged out");
+});
+$("goImportBtn")?.addEventListener("click", () => showPage("import"));
 
 /* ---------------- Theme ---------------- */
 function applyTheme(t) {
