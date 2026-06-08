@@ -842,6 +842,23 @@ function renderAll() {
   renderDashboard();
 }
 
+/* ---------------- Theme ---------------- */
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("f4k-theme", t); } catch (e) { /* storage blocked */ }
+  const sw = $("themeSwitch");
+  if (sw) {
+    const dark = t === "dark";
+    sw.classList.toggle("on", dark);
+    sw.setAttribute("aria-checked", String(dark));
+  }
+}
+$("themeSwitch")?.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
+// Sync the switch UI with whatever the head script already applied
+applyTheme(document.documentElement.dataset.theme || "light");
+
 /* ---------------- Realtime sync ---------------- */
 onSnapshot(query(usersCollection), (snap) => {
   users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
