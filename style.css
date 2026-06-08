@@ -86,7 +86,7 @@ body {
   box-shadow: 0 0 24px rgba(200, 245, 61, 0.35);
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
+.brand-name { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; line-height: 1.05; }
 .brand-sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em; }
 
 .nav { display: flex; flex-direction: column; gap: 6px; }
@@ -370,6 +370,15 @@ textarea { min-height: 92px; resize: vertical; }
 }
 .field { display: block; margin-bottom: 18px; }
 .field-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
+.step-hint {
+  float: right; text-transform: none; letter-spacing: 0;
+  color: var(--lime); font-weight: 700; font-size: 11px;
+  background: var(--lime-soft); padding: 2px 8px; border-radius: 999px;
+}
+.step-feedback {
+  display: block; margin-top: 8px; font-size: 13px; color: var(--lime);
+  font-family: "Space Mono", monospace; min-height: 16px;
+}
 
 .point-toggles { display: grid; gap: 10px; margin-bottom: 18px; }
 .toggle {
@@ -505,6 +514,39 @@ textarea { min-height: 92px; resize: vertical; }
 .user-row .uname { font-weight: 600; }
 .user-meta { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); }
 .user-meta b { color: var(--lime); }
+
+/* ---------- Import ---------- */
+.import-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.import-note b { color: var(--text); }
+.wide-toggle { margin-bottom: 18px; }
+.map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.map-grid .field { margin-bottom: 16px; }
+.import-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.opt { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+.opt select { width: auto; padding: 8px 12px; }
+.opt input[type="checkbox"] { width: auto; accent-color: var(--lime); }
+
+.preview-table { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 18px; }
+.preview-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.preview-table th {
+  position: sticky; top: 0; text-align: left; padding: 11px 14px;
+  background: var(--panel-solid); color: var(--muted);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--line);
+}
+.preview-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.preview-table tr:last-child td { border-bottom: none; }
+.preview-table .num { font-family: "Space Mono", monospace; text-align: right; }
+.pbadge { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.pbadge.add { background: var(--lime-soft); color: var(--lime); }
+.pbadge.update { background: rgba(255, 210, 74, 0.15); color: var(--gold); }
+.pbadge.skip { background: rgba(255,255,255,0.05); color: var(--faint); }
+.pbadge.new { background: var(--flame-soft); color: var(--flame); }
+.preview-more { padding: 12px 14px; color: var(--faint); font-size: 13px; text-align: center; }
+
+@media (max-width: 760px) {
+  .map-grid { grid-template-columns: 1fr; }
+}
 
 /* ---------- Toast ---------- */
 .toast {
