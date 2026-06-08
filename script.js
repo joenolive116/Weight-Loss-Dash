@@ -4,6 +4,7 @@ import {
   collection,
   addDoc,
   deleteDoc,
+  updateDoc,
   doc,
   onSnapshot,
   query,
@@ -53,7 +54,8 @@ const formatMonth = (key) => {
 };
 const initials = (name) =>
   name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
-const points = (c) => (c.workout ? 1 : 0) + (c.diet ? 1 : 0) + (c.wonDay ? 1 : 0);
+const stepPoints = (c) => Math.floor((Number(c.steps) || 0) / 1000);
+const points = (c) => (c.workout ? 1 : 0) + (c.diet ? 1 : 0) + (c.wonDay ? 1 : 0) + stepPoints(c);
 const escapeHtml = (s = "") =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
@@ -84,10 +86,11 @@ function memberStats(userId, monthCheckins) {
     points: mine.reduce((s, c) => s + points(c), 0),
     checkins: mine.length,
     days: days.size,
-    perfect: mine.filter((c) => points(c) === 3).length,
+    perfect: mine.filter((c) => c.workout && c.diet && c.wonDay).length,
     workouts: mine.filter((c) => c.workout).length,
     diets: mine.filter((c) => c.diet).length,
     wins: mine.filter((c) => c.wonDay).length,
+    steps: mine.reduce((s, c) => s + (Number(c.steps) || 0), 0),
     streak: currentStreak(userId)
   };
 }
@@ -150,7 +153,7 @@ function renderDashboard() {
   $("topScore").textContent = scores[0]?.points || 0;
   $("topScoreName").textContent = scores[0] && scores[0].points > 0 ? scores[0].name : "—";
   $("totalCheckins").textContent = monthCheckins.length;
-  $("perfectDays").textContent = monthCheckins.filter((c) => points(c) === 3).length;
+  $("perfectDays").textContent = monthCheckins.filter((c) => c.workout && c.diet && c.wonDay).length;
   $("activeUsers").textContent = activeCount;
   $("totalUsers").textContent = "/" + users.length;
 
@@ -389,6 +392,7 @@ function renderHistory() {
         .map((c) => {
           const name = userById(c.userId)?.name || "Unknown";
           const when = new Date(c.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const stepStr = Number(c.steps) ? ` · 👟 ${Number(c.steps).toLocaleString()}` : "";
           const thumb = c.imageUrl
             ? `<img class="history-thumb" src="${c.imageUrl}" alt="" />`
             : `<div class="history-thumb">${c.imageName ? "🖼️" : "💪"}</div>`;
@@ -397,7 +401,7 @@ function renderHistory() {
             ${thumb}
             <div class="history-main">
               <b>${escapeHtml(name)} <span style="color:var(--lime);font-family:'Space Mono'">+${points(c)}</span></b>
-              <span>${when}${c.win ? " · " + escapeHtml(c.win.trim()) : ""}</span>
+              <span>${when}${stepStr}${c.win ? " · " + escapeHtml(c.win.trim()) : ""}</span>
             </div>
             <div class="history-badges">
               <span class="badge ${c.workout ? "on" : ""}">🏋️</span>
@@ -426,10 +430,17 @@ function updateLivePoints() {
   if ($("workout")?.checked) p++;
   if ($("diet")?.checked) p++;
   if ($("wonDay")?.checked) p++;
+  const steps = Number($("stepCount")?.value) || 0;
+  const sp = Math.floor(steps / 1000);
+  p += sp;
   $("livePoints").textContent = p;
+  const fb = $("stepFeedback");
+  if (fb) {
+    fb.textContent = steps > 0 ? `${steps.toLocaleString()} steps = ${sp} point${sp === 1 ? "" : "s"}` : "";
+  }
 }
-["workout", "diet", "wonDay"].forEach((id) =>
-  $(id)?.addEventListener("change", updateLivePoints)
+["workout", "diet", "wonDay", "stepCount"].forEach((id) =>
+  $(id)?.addEventListener("input", updateLivePoints)
 );
 
 function updateUserStatus() {
@@ -448,6 +459,7 @@ function updateUserStatus() {
     <div class="status-pill ${done ? "done" : "pending"}">${done ? "✓ Logged today" : "○ Not logged today"}</div>
     <div class="status-row"><span>Current streak</span><b>🔥 ${st.streak}</b></div>
     <div class="status-row"><span>Points this month</span><b>${st.points}</b></div>
+    <div class="status-row"><span>Steps this month</span><b>${st.steps.toLocaleString()}</b></div>
     <div class="status-row"><span>Days active</span><b>${st.days}</b></div>
     <div class="status-row"><span>Perfect days</span><b>${st.perfect}</b></div>`;
 }
@@ -512,6 +524,7 @@ $("checkinForm").addEventListener("submit", async (e) => {
         workout: $("workout").checked,
         diet: $("diet").checked,
         wonDay: $("wonDay").checked,
+        steps: Number($("stepCount").value) || 0,
         win: $("dailyWin").value.trim(),
         imageName,
         imageUrl,
@@ -521,6 +534,7 @@ $("checkinForm").addEventListener("submit", async (e) => {
       $("checkinForm").reset();
       $("imagePreview").hidden = true;
       $("fileHint").textContent = "Tap to attach a progress pic";
+      $("stepFeedback").textContent = "";
       updateLivePoints();
       updateUserStatus();
       toast("Check-in submitted 💪");
@@ -575,7 +589,262 @@ $("confirmOk").addEventListener("click", async () => {
   if (cb) await cb();
 });
 
-/* ---------------- Master render ---------------- */
+/* ---------------- CSV Step Import ---------------- */
+let csvHeaders = [];
+let csvRows = [];
+let importPlan = [];
+
+// RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines, escaped quotes
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else field += ch;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+function parseImportDate(s) {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  const d = new Date(t);
+  if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  // try DD/MM/YYYY and DD-MM-YYYY
+  const m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (m) {
+    let [, a, b, y] = m;
+    if (y.length === 2) y = "20" + y;
+    const dd = new Date(+y, +b - 1, +a, 12);
+    if (!isNaN(dd)) return dd;
+  }
+  return null;
+}
+
+const isDateHeader = (h) => parseImportDate(h) !== null && /\d/.test(h);
+const cleanSteps = (v) => parseInt(String(v).replace(/[^0-9]/g, ""), 10);
+
+function fillColSelect(sel, headers, chosen) {
+  if (!sel) return;
+  sel.innerHTML = "";
+  headers.forEach((h, i) => {
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = h.trim() || `Column ${i + 1}`;
+    sel.appendChild(o);
+  });
+  if (chosen >= 0) sel.value = chosen;
+}
+
+function handleCSV(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) { toast("That CSV looks empty", true); return; }
+
+  csvHeaders = rows[0];
+  csvRows = rows.slice(1);
+
+  const lower = csvHeaders.map((h) => h.toLowerCase().trim());
+  const findCol = (...keys) => lower.findIndex((h) => keys.some((k) => h.includes(k)));
+  const nameIdx = findCol("name", "member", "user", "participant", "player");
+  const dateIdx = findCol("date", "day");
+  const stepsIdx = findCol("step");
+
+  const dateHeaderCount = csvHeaders.filter(isDateHeader).length;
+  const wide = dateHeaderCount >= 2;
+
+  fillColSelect($("mapName"), csvHeaders, nameIdx >= 0 ? nameIdx : 0);
+  fillColSelect($("mapDate"), csvHeaders, dateIdx);
+  fillColSelect($("mapSteps"), csvHeaders, stepsIdx);
+  $("wideMode").checked = wide;
+  toggleWideUI();
+
+  $("formatTag").textContent = `${csvRows.length} rows · ${csvHeaders.length} columns`;
+  $("importConfig").hidden = false;
+  $("importPreview").hidden = true;
+  $("csvHint").textContent = "✓ File loaded — map the columns below";
+}
+
+function toggleWideUI() {
+  const wide = $("wideMode").checked;
+  $("mapDateWrap").style.display = wide ? "none" : "";
+  $("mapStepsWrap").style.display = wide ? "none" : "";
+}
+
+function buildPlan() {
+  const wide = $("wideMode").checked;
+  const dupeMode = $("dupeMode").value;
+  const createMissing = $("createMissing").checked;
+  const nameIdx = +$("mapName").value;
+  const raw = [];
+
+  if (wide) {
+    const dateCols = csvHeaders
+      .map((h, i) => ({ i, date: parseImportDate(h) }))
+      .filter((o) => o.i !== nameIdx && o.date);
+    csvRows.forEach((r) => {
+      const name = (r[nameIdx] || "").trim();
+      if (!name) return;
+      dateCols.forEach((dc) => {
+        const steps = cleanSteps(r[dc.i]);
+        if (steps) raw.push({ name, date: dc.date, steps });
+      });
+    });
+  } else {
+    const dateIdx = +$("mapDate").value;
+    const stepsIdx = +$("mapSteps").value;
+    csvRows.forEach((r) => {
+      const name = (r[nameIdx] || "").trim();
+      const date = parseImportDate(r[dateIdx]);
+      const steps = cleanSteps(r[stepsIdx]);
+      if (name && date && steps) raw.push({ name, date, steps });
+    });
+  }
+
+  // Dedupe within the CSV by name+day (last value wins)
+  const map = new Map();
+  raw.forEach((e) => map.set(e.name.toLowerCase() + "|" + e.date.toDateString(), e));
+
+  importPlan = [...map.values()].map((e) => {
+    const member = users.find((u) => u.name.toLowerCase() === e.name.toLowerCase());
+    const existing = member
+      ? checkins.find((c) => c.userId === member.id && new Date(c.date).toDateString() === e.date.toDateString())
+      : null;
+    let action;
+    if (existing) action = dupeMode === "overwrite" ? "update" : "skip";
+    else if (!member && !createMissing) action = "skip";
+    else action = "add";
+    return {
+      name: e.name,
+      memberId: member?.id || null,
+      isNewMember: !member && createMissing,
+      date: e.date,
+      steps: e.steps,
+      points: Math.floor(e.steps / 1000),
+      action,
+      existingId: existing?.id || null
+    };
+  });
+
+  renderPreview();
+}
+
+function renderPreview() {
+  const add = importPlan.filter((p) => p.action === "add").length;
+  const upd = importPlan.filter((p) => p.action === "update").length;
+  const skip = importPlan.filter((p) => p.action === "skip").length;
+  const newMembers = new Set(importPlan.filter((p) => p.isNewMember && p.action !== "skip").map((p) => p.name.toLowerCase())).size;
+  const willWrite = add + upd;
+
+  $("previewSummary").textContent =
+    `${add} new · ${upd} updated · ${skip} skipped` + (newMembers ? ` · ${newMembers} new member${newMembers === 1 ? "" : "s"}` : "");
+  $("importCount").textContent = willWrite;
+
+  const badge = { add: "add", update: "update", skip: "skip" };
+  const label = { add: "Add", update: "Overwrite", skip: "Skip" };
+  const shown = importPlan.slice(0, 80);
+
+  $("previewTable").innerHTML = `
+    <table>
+      <thead><tr><th>Member</th><th>Date</th><th class="num">Steps</th><th class="num">Pts</th><th>Action</th></tr></thead>
+      <tbody>
+        ${shown
+          .map(
+            (p) => `<tr>
+              <td>${escapeHtml(p.name)}${p.isNewMember && p.action !== "skip" ? ' <span class="pbadge new">new</span>' : ""}</td>
+              <td>${p.date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
+              <td class="num">${p.steps.toLocaleString()}</td>
+              <td class="num">${p.points}</td>
+              <td><span class="pbadge ${badge[p.action]}">${label[p.action]}</span></td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+    ${importPlan.length > shown.length ? `<div class="preview-more">…and ${importPlan.length - shown.length} more</div>` : ""}`;
+
+  $("importPreview").hidden = false;
+  $("runImportBtn").disabled = willWrite === 0;
+}
+
+async function runImport() {
+  const btn = $("runImportBtn");
+  btn.disabled = true;
+  const work = importPlan.filter((p) => p.action !== "skip");
+
+  // Create any new members first, then map names -> ids
+  const newNames = [...new Set(work.filter((p) => p.isNewMember).map((p) => p.name))];
+  const nameToId = {};
+  try {
+    for (const name of newNames) {
+      const ref = await addDoc(usersCollection, { name, createdAt: serverTimestamp() });
+      nameToId[name.toLowerCase()] = ref.id;
+    }
+  } catch (e) {
+    toast("Couldn't create members — check your Firestore rules", true);
+    btn.disabled = false;
+    return;
+  }
+
+  const writes = [];
+  for (const p of work) {
+    const memberId = p.memberId || nameToId[p.name.toLowerCase()];
+    if (!memberId) continue;
+    if (p.action === "update" && p.existingId) {
+      writes.push(updateDoc(doc(db, "checkins", p.existingId), { steps: p.steps }));
+    } else {
+      writes.push(
+        addDoc(checkinsCollection, {
+          userId: memberId,
+          workout: false, diet: false, wonDay: false,
+          steps: p.steps,
+          win: "",
+          imageName: null, imageUrl: null,
+          date: new Date(p.date).toISOString(),
+          createdAt: serverTimestamp(),
+          source: "csv"
+        })
+      );
+    }
+  }
+
+  try {
+    await Promise.all(writes);
+    toast(`Imported ${writes.length} step entr${writes.length === 1 ? "y" : "ies"} 🎉`);
+    $("importConfig").hidden = true;
+    $("importPreview").hidden = true;
+    $("csvUpload").value = "";
+    $("csvHint").textContent = "Tap to choose your Step Up CSV export";
+    importPlan = [];
+  } catch (e) {
+    toast("Some entries failed to save", true);
+    btn.disabled = false;
+  }
+}
+
+$("csvUpload")?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => handleCSV(String(reader.result));
+  reader.onerror = () => toast("Couldn't read that file", true);
+  reader.readAsText(file);
+});
+$("wideMode")?.addEventListener("change", toggleWideUI);
+$("previewBtn")?.addEventListener("click", buildPlan);
+$("runImportBtn")?.addEventListener("click", runImport);
+
+
 function renderAll() {
   renderUsers();
   renderHistory();
@@ -594,4 +863,4 @@ onSnapshot(query(checkinsCollection), (snap) => {
 
 // Start on dashboard
 showPage("dashboard");
-console.log("Kai Ke Fit dashboard loaded.");
+console.log("Fit 4 The Kingdom dashboard loaded.");
