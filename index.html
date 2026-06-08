@@ -8,6 +8,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script>
+    // Apply saved theme before paint (default: light)
+    try { document.documentElement.dataset.theme = localStorage.getItem("f4k-theme") || "light"; }
+    catch (e) { document.documentElement.dataset.theme = "light"; }
+  </script>
 </head>
 <body>
   <div class="bg-fx" aria-hidden="true"></div>
@@ -34,6 +39,9 @@
         </button>
         <button class="nav-btn" data-page="import">
           <span class="nav-ico">⇪</span> Import
+        </button>
+        <button class="nav-btn" data-page="settings">
+          <span class="nav-ico">⚙</span> Settings
         </button>
       </nav>
 
@@ -270,6 +278,34 @@
           <div class="panel-head"><h3>Preview</h3><span class="hint" id="previewSummary"></span></div>
           <div id="previewTable" class="preview-table"></div>
           <button id="runImportBtn" class="primary-btn"><span>Import <span id="importCount">0</span> Entries</span></button>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="settings" class="page">
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Preferences</span>
+            <h2>Settings</h2>
+            <p>Personalize how the dashboard looks.</p>
+          </div>
+        </header>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Appearance</h3></div>
+          <div class="setting-row">
+            <div class="setting-text">
+              <b>Dark mode</b>
+              <span>The dashboard opens in light mode. Flip this for a dark scoreboard look.</span>
+            </div>
+            <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="false" aria-label="Toggle dark mode">
+              <span class="switch-track">
+                <span class="switch-ico sun">☀</span>
+                <span class="switch-ico moon">☾</span>
+                <span class="switch-thumb"></span>
+              </span>
+            </button>
+          </div>
         </div>
       </section>
     </main>
