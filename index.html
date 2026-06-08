@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weight Loss Competition Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <h1>Kai Ke Fit</h1>
+      <button onclick="showPage('dashboard')">Dashboard</button>
+      <button onclick="showPage('checkin')">Check In</button>
+      <button onclick="showPage('newUser')">New User</button>
+    </aside>
+
+    <main class="main">
+
+      <section id="dashboard" class="page active">
+        <div class="top-bar">
+          <div>
+            <h2>Monthly Leaderboard</h2>
+            <p>Track points, wins, and daily progress.</p>
+          </div>
+
+          <select id="monthFilter" onchange="renderDashboard()"></select>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <h3>Total Check Ins</h3>
+            <p id="totalCheckins">0</p>
+          </div>
+          <div class="card">
+            <h3>Total Members</h3>
+            <p id="totalUsers">0</p>
+          </div>
+          <div class="card">
+            <h3>Top Score</h3>
+            <p id="topScore">0</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="panel">
+            <h3>Leaderboard</h3>
+            <div id="leaderboard"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Yesterday’s Wins</h3>
+            <div class="wins-slider">
+              <p id="rotatingWin">No wins submitted yet.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="checkin" class="page">
+        <h2>Daily Check In</h2>
+
+        <form id="checkinForm" class="form-card">
+          <label>
+            Select User
+            <select id="checkinUser" required></select>
+          </label>
+
+          <label class="checkbox">
+            <input type="checkbox" id="workout" />
+            Did you complete a 30 min workout?
+          </label>
+
+          <label class="checkbox">
+            <input type="checkbox" id="diet" />
+            Did you follow a diet?
+          </label>
+
+          <label class="checkbox">
+            <input type="checkbox" id="wonDay" />
+            Do you feel like you won the day?
+          </label>
+
+          <label>
+            One win from today
+            <textarea id="dailyWin" placeholder="Example: I chose water instead of soda."></textarea>
+          </label>
+
+          <label>
+            Attach Image
+            <input type="file" id="imageUpload" accept="image/*" />
+          </label>
+
+          <button type="submit" class="primary-btn">Submit Check In</button>
+        </form>
+      </section>
+
+      <section id="newUser" class="page">
+        <h2>Create New User</h2>
+
+        <form id="newUserForm" class="form-card">
+          <label>
+            Full Name
+            <input type="text" id="newUserName" placeholder="Enter name" required />
+          </label>
+
+          <button type="submit" class="primary-btn">Add User</button>
+        </form>
+
+        <div class="panel">
+          <h3>Current Users</h3>
+          <div id="userList"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
