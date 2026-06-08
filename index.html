@@ -9,9 +9,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script>
-    // Apply saved theme before paint (default: light)
-    try { document.documentElement.dataset.theme = localStorage.getItem("f4k-theme") || "light"; }
-    catch (e) { document.documentElement.dataset.theme = "light"; }
+    // Apply saved theme + admin state before paint
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem("f4k-theme") || "light";
+      document.documentElement.dataset.admin = localStorage.getItem("f4k-admin") === "1" ? "true" : "false";
+    } catch (e) {
+      document.documentElement.dataset.theme = "light";
+      document.documentElement.dataset.admin = "false";
+    }
   </script>
 </head>
 <body>
@@ -37,7 +42,7 @@
         <button class="nav-btn" data-page="newUser">
           <span class="nav-ico">◎</span> Members
         </button>
-        <button class="nav-btn" data-page="import">
+        <button class="nav-btn admin-only" data-page="import">
           <span class="nav-ico">⇪</span> Import
         </button>
         <button class="nav-btn" data-page="settings">
@@ -304,6 +309,34 @@
                 <span class="switch-ico moon">☾</span>
                 <span class="switch-thumb"></span>
               </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Admin Access</h3></div>
+
+          <div class="guest-only">
+            <div class="setting-text" style="margin-bottom: 14px">
+              <b>Log in as admin</b>
+              <span>Admin access unlocks step imports and lets you delete entries.</span>
+            </div>
+            <div class="admin-login-row">
+              <input type="password" id="adminCode" placeholder="Admin passcode" autocomplete="off" />
+              <button id="adminLoginBtn" class="primary-btn btn-inline"><span>Log In</span></button>
+            </div>
+          </div>
+
+          <div class="admin-only">
+            <div class="setting-row">
+              <div class="setting-text">
+                <b class="admin-on">✓ Logged in as admin</b>
+                <span>You can import steps and delete entries.</span>
+              </div>
+              <button id="adminLogoutBtn" class="ghost-btn">Log Out</button>
+            </div>
+            <button id="goImportBtn" class="primary-btn btn-inline" style="margin-top: 16px">
+              <span class="nav-ico">⇪</span> Open Step Import
             </button>
           </div>
         </div>
