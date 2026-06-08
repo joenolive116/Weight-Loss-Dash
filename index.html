@@ -3,119 +3,231 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weight Loss Competition Dashboard</title>
+  <title>Kai Ke Fit — Competition Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="bg-fx" aria-hidden="true"></div>
 
   <div class="app">
-
     <aside class="sidebar">
-      <h1>Kai Ke Fit</h1>
-      <button onclick="showPage('dashboard')">Dashboard</button>
-      <button onclick="showPage('checkin')">Check In</button>
-      <button onclick="showPage('newUser')">New User</button>
+      <div class="brand">
+        <div class="brand-mark">KK</div>
+        <div class="brand-text">
+          <span class="brand-name">Kai Ke Fit</span>
+          <span class="brand-sub">Competition</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn" data-page="dashboard">
+          <span class="nav-ico">◈</span> Leaderboard
+        </button>
+        <button class="nav-btn" data-page="checkin">
+          <span class="nav-ico">＋</span> Check In
+        </button>
+        <button class="nav-btn" data-page="newUser">
+          <span class="nav-ico">◎</span> Members
+        </button>
+      </nav>
+
+      <div class="side-foot">
+        <div class="streak-flame" id="sideStreak">🔥 0</div>
+        <span>longest active streak</span>
+      </div>
     </aside>
 
     <main class="main">
 
+      <!-- DASHBOARD -->
       <section id="dashboard" class="page active">
-        <div class="top-bar">
-          <div>
-            <h2>Monthly Leaderboard</h2>
-            <p>Track points, wins, and daily progress.</p>
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Standings</span>
+            <h2 id="dashTitle">Monthly Leaderboard</h2>
+            <p>Points, streaks, and daily momentum across the crew.</p>
           </div>
+          <div class="month-select">
+            <label for="monthFilter">Month</label>
+            <select id="monthFilter"></select>
+          </div>
+        </header>
 
-          <select id="monthFilter" onchange="renderDashboard()"></select>
-        </div>
+        <div id="winnerBanner" class="winner-banner" hidden></div>
 
         <div class="cards">
           <div class="card">
-            <h3>Total Check Ins</h3>
-            <p id="totalCheckins">0</p>
+            <span class="card-label">Top Score</span>
+            <span class="card-value" id="topScore">0</span>
+            <span class="card-meta" id="topScoreName">—</span>
           </div>
           <div class="card">
-            <h3>Total Members</h3>
-            <p id="totalUsers">0</p>
+            <span class="card-label">Check-Ins</span>
+            <span class="card-value" id="totalCheckins">0</span>
+            <span class="card-meta">this month</span>
           </div>
           <div class="card">
-            <h3>Top Score</h3>
-            <p id="topScore">0</p>
+            <span class="card-label">Perfect Days</span>
+            <span class="card-value" id="perfectDays">0</span>
+            <span class="card-meta">3 / 3 logged</span>
+          </div>
+          <div class="card">
+            <span class="card-label">Active / Total</span>
+            <span class="card-value"><span id="activeUsers">0</span><span class="card-frac" id="totalUsers">/0</span></span>
+            <span class="card-meta">members logging</span>
           </div>
         </div>
+
+        <div class="podium" id="podium"></div>
 
         <div class="dashboard-grid">
           <div class="panel">
-            <h3>Leaderboard</h3>
-            <div id="leaderboard"></div>
+            <div class="panel-head">
+              <h3>Full Standings</h3>
+              <span class="hint">tap a row for details</span>
+            </div>
+            <div id="leaderboard" class="leaderboard"></div>
           </div>
 
-          <div class="panel">
-            <h3>Yesterday’s Wins</h3>
-            <div class="wins-slider">
-              <p id="rotatingWin">No wins submitted yet.</p>
+          <div class="panel spotlight-panel">
+            <div class="panel-head">
+              <h3>Win Spotlight</h3>
+              <span class="hint" id="spotlightTag">recent</span>
             </div>
+            <div class="wins-slider">
+              <p id="rotatingWin" class="rotating-win">No wins submitted yet.</p>
+              <div class="win-dots" id="winDots"></div>
+            </div>
+            <div class="recent-wins" id="recentWins"></div>
           </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Daily Momentum</h3>
+            <span class="hint">total points logged per day</span>
+          </div>
+          <div id="momentumChart" class="momentum"></div>
         </div>
       </section>
 
+      <!-- CHECK IN -->
       <section id="checkin" class="page">
-        <h2>Daily Check In</h2>
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Daily Log</span>
+            <h2>Check In</h2>
+            <p>Three points up for grabs every day.</p>
+          </div>
+        </header>
 
-        <form id="checkinForm" class="form-card">
-          <label>
-            Select User
-            <select id="checkinUser" required></select>
-          </label>
+        <div class="checkin-grid">
+          <form id="checkinForm" class="form-card">
+            <label class="field">
+              <span class="field-label">Member</span>
+              <select id="checkinUser" required></select>
+            </label>
 
-          <label class="checkbox">
-            <input type="checkbox" id="workout" />
-            Did you complete a 30 min workout?
-          </label>
+            <div class="point-toggles">
+              <label class="toggle">
+                <input type="checkbox" id="workout" />
+                <span class="toggle-box">🏋️</span>
+                <span class="toggle-text">30 min workout</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="diet" />
+                <span class="toggle-box">🥗</span>
+                <span class="toggle-text">Followed diet</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="wonDay" />
+                <span class="toggle-box">🏆</span>
+                <span class="toggle-text">Won the day</span>
+              </label>
+            </div>
 
-          <label class="checkbox">
-            <input type="checkbox" id="diet" />
-            Did you follow a diet?
-          </label>
+            <label class="field">
+              <span class="field-label">One win from today</span>
+              <textarea id="dailyWin" placeholder="e.g. Chose water over soda, hit my step goal..."></textarea>
+            </label>
 
-          <label class="checkbox">
-            <input type="checkbox" id="wonDay" />
-            Do you feel like you won the day?
-          </label>
+            <label class="field">
+              <span class="field-label">Photo (optional)</span>
+              <div class="file-drop" id="fileDrop">
+                <input type="file" id="imageUpload" accept="image/*" />
+                <span class="file-hint" id="fileHint">Tap to attach a progress pic</span>
+                <img id="imagePreview" class="image-preview" alt="" hidden />
+              </div>
+            </label>
 
-          <label>
-            One win from today
-            <textarea id="dailyWin" placeholder="Example: I chose water instead of soda."></textarea>
-          </label>
+            <button type="submit" class="primary-btn">
+              <span>Submit Check In</span>
+              <span class="btn-points">+<span id="livePoints">0</span></span>
+            </button>
+          </form>
 
-          <label>
-            Attach Image
-            <input type="file" id="imageUpload" accept="image/*" />
-          </label>
-
-          <button type="submit" class="primary-btn">Submit Check In</button>
-        </form>
-      </section>
-
-      <section id="newUser" class="page">
-        <h2>Create New User</h2>
-
-        <form id="newUserForm" class="form-card">
-          <label>
-            Full Name
-            <input type="text" id="newUserName" placeholder="Enter name" required />
-          </label>
-
-          <button type="submit" class="primary-btn">Add User</button>
-        </form>
+          <aside class="status-card" id="statusCard">
+            <h3>Today’s Status</h3>
+            <div id="userStatus" class="user-status">Select a member to see their stats.</div>
+          </aside>
+        </div>
 
         <div class="panel">
-          <h3>Current Users</h3>
-          <div id="userList"></div>
+          <div class="panel-head">
+            <h3>Recent Check-Ins</h3>
+            <span class="hint">most recent first</span>
+          </div>
+          <div id="checkinHistory" class="history"></div>
+        </div>
+      </section>
+
+      <!-- MEMBERS -->
+      <section id="newUser" class="page">
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Roster</span>
+            <h2>Members</h2>
+            <p>Add competitors and manage the crew.</p>
+          </div>
+        </header>
+
+        <div class="member-grid">
+          <form id="newUserForm" class="form-card">
+            <label class="field">
+              <span class="field-label">Full Name</span>
+              <input type="text" id="newUserName" placeholder="Enter name" required autocomplete="off" />
+            </label>
+            <button type="submit" class="primary-btn"><span>Add Member</span></button>
+          </form>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Current Members</h3>
+              <span class="hint" id="memberCount">0 members</span>
+            </div>
+            <div id="userList" class="user-list"></div>
+          </div>
         </div>
       </section>
 
     </main>
+  </div>
+
+  <!-- Toast + confirm modal -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="confirmModal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 id="confirmTitle">Are you sure?</h3>
+      <p id="confirmBody"></p>
+      <div class="modal-actions">
+        <button id="confirmCancel" class="ghost-btn">Cancel</button>
+        <button id="confirmOk" class="danger-btn">Delete</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="script.js"></script>
