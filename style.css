@@ -370,15 +370,16 @@ textarea { min-height: 92px; resize: vertical; }
 }
 .field { display: block; margin-bottom: 18px; }
 .field-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
-.step-hint {
-  float: right; text-transform: none; letter-spacing: 0;
-  color: var(--lime); font-weight: 700; font-size: 11px;
-  background: var(--lime-soft); padding: 2px 8px; border-radius: 999px;
+.steps-note {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--lime-soft);
+  border: 1px solid rgba(200, 245, 61, 0.28);
 }
-.step-feedback {
-  display: block; margin-top: 8px; font-size: 13px; color: var(--lime);
-  font-family: "Space Mono", monospace; min-height: 16px;
-}
+.steps-note-ico { font-size: 20px; line-height: 1.2; }
+.steps-note b { display: block; font-size: 14px; color: var(--lime); margin-bottom: 2px; }
+.steps-note span { font-size: 13px; color: var(--muted); }
 
 .point-toggles { display: grid; gap: 10px; margin-bottom: 18px; }
 .toggle {
