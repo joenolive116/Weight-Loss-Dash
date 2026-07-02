@@ -140,10 +140,6 @@ function populateMonthFilter() {
   if (prev && months.includes(prev)) sel.value = prev;
 }
 $("monthFilter").addEventListener("change", renderDashboard);
-$("dayMonthFilter")?.addEventListener("change", (e) => {
-  analyticsDayMonth = e.target.value;
-  renderAnalytics();
-});
 
 /* ---------------- Dashboard ---------------- */
 function renderDashboard() {
@@ -199,15 +195,16 @@ function renderPodium(scores) {
       if (!s) return `<div></div>`;
       const place = top.indexOf(s);
       return `
-        <div class="podium-spot ${rankOf[place]}">
+        <div class="podium-spot ${rankOf[place]}" data-profile="${s.id}">
           <div class="podium-medal">${medals[place]}</div>
-          <div class="podium-avatar">${initials(s.name)}</div>
+          ${avatarHTML(userById(s.id), "podium-avatar")}
           <div class="podium-name">${escapeHtml(s.name)}</div>
           <div class="podium-points">${s.points}<small> pts</small></div>
           ${s.streak > 1 ? `<div class="podium-streak">🔥 ${s.streak} day streak</div>` : ""}
         </div>`;
     })
     .join("");
+  el.querySelectorAll("[data-profile]").forEach((x) => x.addEventListener("click", () => openProfile(x.dataset.profile)));
 }
 
 function renderLeaderboard(scores) {
@@ -219,26 +216,20 @@ function renderLeaderboard(scores) {
   lb.innerHTML = scores
     .map(
       (s, i) => `
-      <div class="leader-row ${i < 3 && s.points > 0 ? "top" : ""}" data-toggle>
+      <div class="leader-row ${i < 3 && s.points > 0 ? "top" : ""}" data-profile="${s.id}">
         <div class="rank">${i + 1}</div>
         <div class="leader-name">
-          <span class="mini-avatar">${initials(s.name)}</span>
+          ${avatarHTML(userById(s.id))}
           <span>${escapeHtml(s.name)}</span>
           ${s.streak > 1 ? `<span class="leader-streak">🔥${s.streak}</span>` : ""}
         </div>
         <div class="points">${s.points}<small> pts</small></div>
-        <div class="leader-detail">
-          <div class="detail-stat"><b>${s.days}</b><span>days active</span></div>
-          <div class="detail-stat"><b>${s.perfect}</b><span>perfect days</span></div>
-          <div class="detail-stat"><b>${s.workouts}</b><span>workouts</span></div>
-          <div class="detail-stat"><b>${s.diets}</b><span>diet days</span></div>
-          <div class="detail-stat"><b>${s.wins}</b><span>won days</span></div>
-        </div>
+        <div class="leader-go">›</div>
       </div>`
     )
     .join("");
-  lb.querySelectorAll(".leader-row").forEach((row) =>
-    row.addEventListener("click", () => row.classList.toggle("open"))
+  lb.querySelectorAll("[data-profile]").forEach((row) =>
+    row.addEventListener("click", () => openProfile(row.dataset.profile))
   );
 }
 
@@ -276,196 +267,202 @@ function renderMomentum(monthCheckins, selectedMonth) {
       <span>Day 1</span><span>Day ${daysInMonth}</span></div>`;
 }
 
-/* ---------------- Step Analytics ---------------- */
-const CHART_COLORS = ["#2e9e5b", "#e8663a", "#d9a520", "#3a86c8", "#8b5cf6", "#e05a8f", "#14b8a6", "#b45309", "#6366f1", "#84cc16"];
-let analyticsHidden = new Set();
-let analyticsDayMonth = null;
-
-const shortMonth = (key) => {
-  const [y, m] = key.split("-");
-  return new Date(y, m - 1).toLocaleDateString("en-US", { month: "short" }) + " '" + String(y).slice(2);
-};
-const fmtK = (v) => (v >= 1000 ? (Math.round((v / 1000) * 10) / 10).toString().replace(/\.0$/, "") + "k" : String(v));
-function niceStep(x) {
-  if (x <= 0) return 1;
-  const mag = Math.pow(10, Math.floor(Math.log10(x)));
-  const f = x / mag;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+/* ---------------- Avatars ---------------- */
+function avatarHTML(user, cls = "mini-avatar") {
+  if (user && user.photoUrl) {
+    return `<span class="${cls} has-photo" style="background-image:url('${user.photoUrl}')" role="img" aria-label="${escapeHtml(user.name || "")}"></span>`;
+  }
+  return `<span class="${cls}">${initials(user?.name || "?")}</span>`;
 }
 
-function renderAnalytics() {
-  if (currentPage !== "analytics") return;
+/* ---------------- Member Profile ---------------- */
+let profileUserId = null;
+let profileOpenMonth = null;
 
-  const cardsEl = $("stepStatCards"), legendEl = $("stepLegend"), chartEl = $("stepChart"), tableEl = $("stepTable");
-  if (!chartEl) return;
+function openProfile(id) {
+  profileUserId = id;
+  profileOpenMonth = null;
+  showPage("profile");
+  window.scrollTo({ top: 0 });
+}
 
-  const months = [...new Set(checkins.map((c) => monthKey(c.date)))].sort();
-  const stepFor = (uid, mk) =>
-    checkins.filter((c) => c.userId === uid && monthKey(c.date) === mk).reduce((s, c) => s + (Number(c.steps) || 0), 0);
+function renderProfile() {
+  if (currentPage !== "profile") return;
+  const u = userById(profileUserId);
+  const nameEl = $("profileName");
+  if (!nameEl) return;
+  if (!u) { showPage("dashboard"); return; }
 
-  const members = users
-    .map((u) => ({ id: u.id, name: u.name, total: checkins.filter((c) => c.userId === u.id).reduce((s, c) => s + (Number(c.steps) || 0), 0) }))
-    .filter((m) => m.total > 0)
-    .sort((a, b) => b.total - a.total);
+  $("profileAvatar").innerHTML = avatarHTML(u, "profile-avatar");
+  nameEl.textContent = u.name;
 
-  if (months.length === 0 || members.length === 0) {
-    cardsEl.innerHTML = "";
-    legendEl.innerHTML = "";
-    tableEl.innerHTML = "";
-    chartEl.innerHTML = `<div class="empty">No step data yet. Import steps and the trends will show up here.</div>`;
+  const allChk = checkins.filter((c) => c.userId === u.id);
+  const totalSteps = allChk.reduce((s, c) => s + (Number(c.steps) || 0), 0);
+  const totalPts = allChk.reduce((s, c) => s + points(c), 0);
+  $("profileStats").innerHTML =
+    `<span class="pstat"><b>&#128293; ${currentStreak(u.id)}</b> day streak</span>` +
+    `<span class="pstat"><b>${totalPts.toLocaleString()}</b> total pts</span>` +
+    `<span class="pstat"><b>${totalSteps.toLocaleString()}</b> total steps</span>`;
+
+  const months = [...new Set(allChk.map((c) => monthKey(c.date)))].sort().reverse();
+  const wrap = $("profileMonths");
+  if (months.length === 0) {
+    wrap.innerHTML = `<div class="empty">No check-ins logged yet.</div>`;
     return;
   }
-
-  const colorOf = {};
-  members.forEach((m, i) => (colorOf[m.id] = CHART_COLORS[i % CHART_COLORS.length]));
-
-  // ---- Stat cards ----
-  const grandTotal = members.reduce((s, m) => s + m.total, 0);
-  const thisMonth = months.includes(currentMonthKey()) ? currentMonthKey() : months[months.length - 1];
-  const thisMonthTotal = members.reduce((s, m) => s + stepFor(m.id, thisMonth), 0);
-  const monthTotals = months.map((mk) => ({ mk, total: members.reduce((s, m) => s + stepFor(m.id, mk), 0) }));
-  const best = monthTotals.reduce((a, b) => (b.total > a.total ? b : a), monthTotals[0]);
-  const top = members[0];
-  cardsEl.innerHTML = `
-    <div class="card"><span class="card-label">Total Steps</span><span class="card-value">${fmtK(grandTotal)}</span><span class="card-meta">all members, all time</span></div>
-    <div class="card"><span class="card-label">${formatMonth(thisMonth)}</span><span class="card-value">${fmtK(thisMonthTotal)}</span><span class="card-meta">group steps</span></div>
-    <div class="card"><span class="card-label">Best Month</span><span class="card-value">${fmtK(best.total)}</span><span class="card-meta">${formatMonth(best.mk)}</span></div>
-    <div class="card"><span class="card-label">Top Stepper</span><span class="card-value" style="font-size:22px;line-height:1.1;word-break:break-word">${escapeHtml(top.name)}</span><span class="card-meta">${top.total.toLocaleString()} steps</span></div>`;
-
-  // ---- Legend ----
-  legendEl.innerHTML = members
-    .map(
-      (m) => `<button class="legend-item ${analyticsHidden.has(m.id) ? "off" : ""}" data-series="${m.id}">
-        <span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</button>`
-    )
-    .join("");
-  legendEl.querySelectorAll(".legend-item").forEach((b) =>
-    b.addEventListener("click", () => {
-      const id = b.dataset.series;
-      analyticsHidden.has(id) ? analyticsHidden.delete(id) : analyticsHidden.add(id);
-      renderAnalytics();
-    })
-  );
-
-  // ---- Line chart ----
-  const visible = members.filter((m) => !analyticsHidden.has(m.id));
-  const W = 820, H = 360, padL = 54, padR = 18, padT = 16, padB = 38;
-  const plotW = W - padL - padR, plotH = H - padT - padB;
-  const rawMax = Math.max(1, ...visible.flatMap((m) => months.map((mk) => stepFor(m.id, mk))));
-  const tick = niceStep(rawMax / 4);
-  const yMax = Math.max(tick, Math.ceil(rawMax / tick) * tick);
-  const xFor = (i) => padL + (months.length === 1 ? plotW / 2 : (i / (months.length - 1)) * plotW);
-  const yFor = (v) => padT + plotH - (v / yMax) * plotH;
-
-  let grid = "";
-  for (let v = 0; v <= yMax + 0.5; v += tick) {
-    const y = yFor(v).toFixed(1);
-    grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--line)" stroke-width="1"/>`;
-    grid += `<text x="${padL - 8}" y="${(+y + 4).toFixed(1)}" text-anchor="end" style="fill:var(--faint)" font-size="11">${fmtK(v)}</text>`;
-  }
-  const xlabels = months
-    .map((mk, i) => `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 22}" text-anchor="middle" style="fill:var(--muted)" font-size="11">${shortMonth(mk)}</text>`)
-    .join("");
-
-  let series = "";
-  visible.forEach((m) => {
-    const pts = months.map((mk, i) => `${xFor(i).toFixed(1)},${yFor(stepFor(m.id, mk)).toFixed(1)}`);
-    if (months.length > 1)
-      series += `<polyline points="${pts.join(" ")}" fill="none" stroke="${colorOf[m.id]}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-    months.forEach((mk, i) => {
-      const v = stepFor(m.id, mk);
-      series += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="3.6" fill="${colorOf[m.id]}"><title>${escapeHtml(m.name)} — ${formatMonth(mk)}: ${v.toLocaleString()} steps</title></circle>`;
-    });
-  });
-
-  chartEl.innerHTML = visible.length
-    ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${grid}${xlabels}${series}</svg>`
-    : `<div class="empty">All members hidden — tap a name above to bring them back.</div>`;
-
-  // ---- Breakdown table ----
-  const cell = (v) => (v > 0 ? v.toLocaleString() : "—");
-  const rows = members
-    .map((m) => {
-      const vals = months.map((mk) => stepFor(m.id, mk));
-      const peak = Math.max(...vals);
-      const tds = vals.map((v) => `<td class="num ${v === peak && v > 0 ? "peak" : ""}">${cell(v)}</td>`).join("");
-      return `<tr><td class="mem"><span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</td>${tds}<td class="num tot">${m.total.toLocaleString()}</td></tr>`;
-    })
-    .join("");
-  const foot = months.map((mk) => `<td class="num">${monthTotals.find((x) => x.mk === mk).total.toLocaleString()}</td>`).join("");
-  tableEl.innerHTML = `
-    <table>
-      <thead><tr><th>Member</th>${months
-        .map((mk) => `<th class="num month-h ${mk === analyticsDayMonth ? "sel" : ""}" data-month="${mk}" title="View daily breakdown">${shortMonth(mk)}</th>`)
-        .join("")}<th class="num">Total</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr><td class="mem">Group</td>${foot}<td class="num tot">${grandTotal.toLocaleString()}</td></tr></tfoot>
-    </table>`;
-  tableEl.querySelectorAll("[data-month]").forEach((th) =>
-    th.addEventListener("click", () => {
-      analyticsDayMonth = th.dataset.month;
-      renderAnalytics();
-      $("dayTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    })
-  );
-
-  // ---- Daily breakdown (drill-down into one month) ----
-  const dfilter = $("dayMonthFilter");
-  if (!analyticsDayMonth || !months.includes(analyticsDayMonth)) analyticsDayMonth = months[months.length - 1];
-  if (dfilter) {
-    dfilter.innerHTML = months
-      .slice()
-      .reverse()
-      .map((mk) => `<option value="${mk}">${formatMonth(mk)}</option>`)
-      .join("");
-    dfilter.value = analyticsDayMonth;
-  }
-
-  const [dy, dm] = analyticsDayMonth.split("-").map(Number);
-  const monthChk = checkins.filter((c) => monthKey(c.date) === analyticsDayMonth);
-  const dayMap = {}; // "day|userId" -> steps
-  monthChk.forEach((c) => {
-    const day = new Date(c.date).getDate();
-    const k = day + "|" + c.userId;
-    dayMap[k] = (dayMap[k] || 0) + (Number(c.steps) || 0);
-  });
-  const dget = (uid, day) => dayMap[day + "|" + uid] || 0;
-  const daysInMonth = new Date(dy, dm, 0).getDate();
-  let lastDay = 0;
-  for (let d = 1; d <= daysInMonth; d++) if (members.some((m) => dget(m.id, d) > 0)) lastDay = d;
-
-  const dayTableEl = $("dayTable");
-  if (lastDay === 0) {
-    dayTableEl.innerHTML = `<div class="empty">No step data for ${formatMonth(analyticsDayMonth)} yet.</div>`;
-    return;
-  }
+  if (!profileOpenMonth || !months.includes(profileOpenMonth)) profileOpenMonth = months[0];
 
   const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const memTotal = (uid) => monthChk.filter((c) => c.userId === uid).reduce((s, c) => s + (Number(c.steps) || 0), 0);
-  let dayRows = "";
-  for (let d = 1; d <= lastDay; d++) {
-    const wd = dow[new Date(dy, dm - 1, d).getDay()];
-    const isWeekend = wd === "Sat" || wd === "Sun";
-    const vals = members.map((m) => dget(m.id, d));
-    const dmax = Math.max(...vals);
-    const cells = vals
-      .map((v) => `<td class="num ${v === dmax && v > 0 ? "peak" : ""}">${v > 0 ? v.toLocaleString() : "—"}</td>`)
-      .join("");
-    const dtot = vals.reduce((s, v) => s + v, 0);
-    dayRows += `<tr class="${isWeekend ? "weekend" : ""}"><td class="day">${dm}/${d}<span class="dow">${wd}</span></td>${cells}<td class="num tot">${dtot > 0 ? dtot.toLocaleString() : "—"}</td></tr>`;
-  }
-  const dayFoot = members.map((m) => `<td class="num">${memTotal(m.id).toLocaleString()}</td>`).join("");
-  const dayGrand = members.reduce((s, m) => s + memTotal(m.id), 0);
-  const dayHead = members
-    .map((m) => `<th class="num"><span class="legend-swatch" style="background:${colorOf[m.id]};margin-right:6px;vertical-align:middle"></span>${escapeHtml(m.name)}</th>`)
+  const dayPts = (o) => (o.workout ? 1 : 0) + (o.diet ? 1 : 0) + (o.wonDay ? 1 : 0) + Math.floor(o.steps / 1000);
+
+  wrap.innerHTML = months
+    .map((mk) => {
+      const mChk = allChk.filter((c) => monthKey(c.date) === mk);
+      const dayMap = {};
+      mChk.forEach((c) => {
+        const d = new Date(c.date).getDate();
+        const o = (dayMap[d] = dayMap[d] || { steps: 0, workout: false, diet: false, wonDay: false });
+        o.steps += Number(c.steps) || 0;
+        o.workout = o.workout || !!c.workout;
+        o.diet = o.diet || !!c.diet;
+        o.wonDay = o.wonDay || !!c.wonDay;
+      });
+      const days = Object.keys(dayMap).map(Number).sort((a, b) => a - b);
+      const [yy, mm] = mk.split("-").map(Number);
+      const mSteps = days.reduce((s, d) => s + dayMap[d].steps, 0);
+      const mPts = days.reduce((s, d) => s + dayPts(dayMap[d]), 0);
+      const open = mk === profileOpenMonth;
+      const rows = days
+        .map((d) => {
+          const o = dayMap[d];
+          const wd = dow[new Date(yy, mm - 1, d).getDay()];
+          return `<div class="pday">
+            <div class="pday-date">${mm}/${d}<span>${wd}</span></div>
+            <div class="pday-badges">
+              <span class="badge ${o.workout ? "on" : ""}">&#127947;</span>
+              <span class="badge ${o.diet ? "on" : ""}">&#129367;</span>
+              <span class="badge ${o.wonDay ? "on" : ""}">&#127942;</span>
+            </div>
+            <div class="pday-steps">${o.steps > 0 ? o.steps.toLocaleString() + " &#128094;" : "&mdash;"}</div>
+            <div class="pday-pts">+${dayPts(o)}</div>
+          </div>`;
+        })
+        .join("");
+      return `<div class="pmonth ${open ? "open" : ""}">
+        <button class="pmonth-head" data-month="${mk}">
+          <span class="pmonth-name">${formatMonth(mk)}</span>
+          <span class="pmonth-meta">&#128094; ${mSteps.toLocaleString()} &middot; ${mPts} pts</span>
+          <span class="pmonth-caret">&#9662;</span>
+        </button>
+        <div class="pmonth-days">${rows}</div>
+      </div>`;
+    })
     .join("");
-  dayTableEl.innerHTML = `
-    <table>
-      <thead><tr><th>Day</th>${dayHead}<th class="num">Daily Total</th></tr></thead>
-      <tbody>${dayRows}</tbody>
-      <tfoot><tr><td class="mem">Total</td>${dayFoot}<td class="num tot">${dayGrand.toLocaleString()}</td></tr></tfoot>
-    </table>`;
+
+  wrap.querySelectorAll(".pmonth-head").forEach((h) =>
+    h.addEventListener("click", () => {
+      profileOpenMonth = profileOpenMonth === h.dataset.month ? null : h.dataset.month;
+      renderProfile();
+    })
+  );
 }
+
+/* ---------------- Profile photo (admin) ---------------- */
+function resizeToDataUrl(file, size) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image load failed")); };
+    img.src = url;
+  });
+}
+async function handleProfilePhoto(file) {
+  if (!isAdmin() || !profileUserId || !file) return;
+  try {
+    const dataUrl = await resizeToDataUrl(file, 256);
+    await updateDoc(doc(db, "users", profileUserId), { photoUrl: dataUrl });
+    toast("Photo updated");
+  } catch (e) {
+    toast("Couldn't process that image", true);
+  }
+}
+$("profileBack")?.addEventListener("click", () => showPage("dashboard"));
+$("profilePhotoBtn")?.addEventListener("click", () => $("profilePhotoInput")?.click());
+$("profilePhotoInput")?.addEventListener("change", (e) => {
+  handleProfilePhoto(e.target.files?.[0]);
+  e.target.value = "";
+});
+
+/* ---------------- Coach bot ---------------- */
+const COACH_WORKER_URL = ""; // paste your Cloudflare Worker URL here to enable the coach
+let coachHistory = [];
+
+function coachDataSummary() {
+  const rows = users.map((u) => {
+    const chk = checkins.filter((c) => c.userId === u.id);
+    const steps = chk.reduce((s, c) => s + (Number(c.steps) || 0), 0);
+    const pts = chk.reduce((s, c) => s + points(c), 0);
+    const days = new Set(chk.map((c) => new Date(c.date).toDateString())).size;
+    return `- ${u.name}: ${pts} points, ${steps.toLocaleString()} steps, ${days} active days, ${currentStreak(u.id)}-day current streak`;
+  });
+  return `Fit 4 The Kingdom is a group step and wellness competition. Scoring: workout = 1pt, diet = 1pt, "won the day" = 1pt, plus 1pt per 1,000 steps.\nMembers (${users.length}):\n${rows.join("\n")}`;
+}
+function coachSystem() {
+  return `You are the friendly team coach for a group fitness competition. Answer questions about the group's data and give supportive, practical, evidence-based health, fitness, and nutrition guidance. Keep replies concise and encouraging. You are not a doctor; for medical concerns, gently suggest consulting a professional. Current group data:\n\n${coachDataSummary()}`;
+}
+function appendCoach(role, text, temp) {
+  const log = $("coachLog");
+  if (!log) return null;
+  const el = document.createElement("div");
+  el.className = `coach-msg ${role}${temp ? " temp" : ""}`;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+async function coachSend() {
+  const input = $("coachInput");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  appendCoach("user", text);
+  input.value = "";
+  coachHistory.push({ role: "user", content: text });
+
+  if (!COACH_WORKER_URL) {
+    appendCoach("assistant", "The coach isn't connected yet. An admin needs to deploy the Worker (see worker.js) and paste its URL into COACH_WORKER_URL near the top of script.js.");
+    return;
+  }
+  const typing = appendCoach("assistant", "\u2026", true);
+  try {
+    const res = await fetch(COACH_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system: coachSystem(), messages: coachHistory })
+    });
+    const data = await res.json();
+    if (typing) typing.remove();
+    const reply = data.reply || data.error || "Sorry, I couldn't come up with a response.";
+    appendCoach("assistant", reply);
+    coachHistory.push({ role: "assistant", content: reply });
+  } catch (e) {
+    if (typing) typing.remove();
+    appendCoach("assistant", "I couldn't reach the coach service. Double-check the Worker URL and that it's deployed.");
+  }
+}
+$("coachSend")?.addEventListener("click", coachSend);
+$("coachInput")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); coachSend(); }
+});
 
 /* ---------------- Wins ---------------- */
 function renderWins() {
@@ -555,8 +552,8 @@ function renderUsers() {
             const mc = checkins.filter((c) => monthKey(c.date) === currentMonthKey());
             const st = memberStats(u.id, mc);
             return `
-            <div class="user-row">
-              <span class="mini-avatar">${initials(u.name)}</span>
+            <div class="user-row" data-profile="${u.id}">
+              ${avatarHTML(u)}
               <span class="uname">${escapeHtml(u.name)}</span>
               <span class="user-meta"><b>${st.points}</b> pts · 🔥${st.streak}</span>
               <button class="del-btn admin-only" data-del-user="${u.id}" title="Remove member">✕</button>
@@ -565,8 +562,12 @@ function renderUsers() {
           .join("")
       : `<div class="empty">No members yet. Add your first competitor above.</div>`;
 
+    list.querySelectorAll("[data-profile]").forEach((row) =>
+      row.addEventListener("click", () => openProfile(row.dataset.profile))
+    );
     list.querySelectorAll("[data-del-user]").forEach((btn) =>
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (!isAdmin()) return;
         const u = userById(btn.dataset.delUser);
         confirmAction(
@@ -1075,7 +1076,7 @@ function renderAll() {
   renderUsers();
   renderHistory();
   renderDashboard();
-  renderAnalytics();
+  renderProfile();
 }
 
 /* ---------------- Admin ---------------- */
