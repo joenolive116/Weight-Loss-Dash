@@ -43,7 +43,7 @@ let currentPage = "dashboard";
 
 // ⚠️ Change this passcode to your own. Note: this is a soft gate (the code is
 // visible in this file). For real enforcement, use Firebase Auth + Security Rules.
-const ADMIN_CODE = "kingdom2026";
+const ADMIN_CODE = "Teammaile1!";
 const isAdmin = () => document.documentElement.dataset.admin === "true";
 
 /* ---------------- Helpers ---------------- */
