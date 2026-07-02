@@ -915,8 +915,13 @@ function buildPlan() {
       ? checkins.find((c) => c.userId === member.id && new Date(c.date).toDateString() === e.date.toDateString())
       : null;
     let action;
-    if (existing) action = dupeMode === "overwrite" ? "update" : "skip";
-    else if (!member && !createMissing) action = "skip";
+    if (existing) {
+      const hasSteps = (Number(existing.steps) || 0) > 0;
+      // A check-in with no step data (e.g. a habit-only check-in) should get its
+      // steps filled in, even in Skip mode. Skip only protects real step data.
+      if (!hasSteps) action = "fill";
+      else action = dupeMode === "overwrite" ? "update" : "skip";
+    } else if (!member && !createMissing) action = "skip";
     else action = "add";
     return {
       name: e.name,
@@ -935,17 +940,19 @@ function buildPlan() {
 
 function renderPreview() {
   const add = importPlan.filter((p) => p.action === "add").length;
+  const fill = importPlan.filter((p) => p.action === "fill").length;
   const upd = importPlan.filter((p) => p.action === "update").length;
   const skip = importPlan.filter((p) => p.action === "skip").length;
   const newMembers = new Set(importPlan.filter((p) => p.isNewMember && p.action !== "skip").map((p) => p.name.toLowerCase())).size;
-  const willWrite = add + upd;
+  const willWrite = add + fill + upd;
 
   $("previewSummary").textContent =
-    `${add} new · ${upd} updated · ${skip} skipped` + (newMembers ? ` · ${newMembers} new member${newMembers === 1 ? "" : "s"}` : "");
+    `${add} new · ${fill} filled · ${upd} overwritten · ${skip} skipped` +
+    (newMembers ? ` · ${newMembers} new member${newMembers === 1 ? "" : "s"}` : "");
   $("importCount").textContent = willWrite;
 
-  const badge = { add: "add", update: "update", skip: "skip" };
-  const label = { add: "Add", update: "Overwrite", skip: "Skip" };
+  const badge = { add: "add", fill: "add", update: "update", skip: "skip" };
+  const label = { add: "Add", fill: "Add steps", update: "Overwrite", skip: "Skip" };
   const shown = importPlan.slice(0, 80);
 
   $("previewTable").innerHTML = `
@@ -994,7 +1001,7 @@ async function runImport() {
   for (const p of work) {
     const memberId = p.memberId || nameToId[p.name.toLowerCase()];
     if (!memberId) continue;
-    if (p.action === "update" && p.existingId) {
+    if ((p.action === "update" || p.action === "fill") && p.existingId) {
       writes.push(updateDoc(doc(db, "checkins", p.existingId), { steps: p.steps }));
     } else {
       writes.push(
