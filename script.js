@@ -1,751 +1,1137 @@
-:root, [data-theme="light"] {
-  --bg: #eef1e8;
-  --bg-2: #e4e8da;
-  --panel: rgba(255, 255, 255, 0.82);
-  --panel-solid: #ffffff;
-  --inset: #eef1e6;
-  --line: rgba(20, 45, 12, 0.10);
-  --line-strong: rgba(20, 45, 12, 0.17);
-  --text: #16210f;
-  --muted: #5a6552;
-  --faint: #8b9482;
-  --lime: #2f7a12;            /* accent — readable on light */
-  --lime-fill: #c8f53d;       /* bright fill for buttons/avatars */
-  --lime-2: #a6e000;
-  --lime-soft: rgba(95, 150, 15, 0.16);
-  --flame: #d8431a;
-  --flame-soft: rgba(216, 67, 26, 0.12);
-  --gold: #b3850c;
-  --silver: #97a09a;
-  --bronze: #b9703a;
-  --shadow: 0 18px 44px rgba(40, 55, 20, 0.12);
-  --dot: rgba(20, 45, 12, 0.05);
-  --hover: rgba(20, 45, 12, 0.06);
-  --sidebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(236, 240, 230, 0.6));
-  --r: 18px;
-  --r-lg: 24px;
-}
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/12.14.0/firebase-storage.js";
 
-[data-theme="dark"] {
-  --bg: #0a0d0a;
-  --bg-2: #0e120d;
-  --panel: rgba(22, 28, 21, 0.72);
-  --panel-solid: #161c15;
-  --inset: #0c100b;
-  --line: rgba(220, 240, 200, 0.09);
-  --line-strong: rgba(220, 240, 200, 0.18);
-  --text: #f3f6ec;
-  --muted: #8b9384;
-  --faint: #5d655a;
-  --lime: #c8f53d;
-  --lime-fill: #c8f53d;
-  --lime-2: #a6e000;
-  --lime-soft: rgba(200, 245, 61, 0.13);
-  --flame: #ff5e3a;
-  --flame-soft: rgba(255, 94, 58, 0.14);
-  --gold: #ffd24a;
-  --silver: #c7d0cb;
-  --bronze: #e08a4e;
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-  --dot: rgba(255, 255, 255, 0.025);
-  --hover: rgba(255, 255, 255, 0.05);
-  --sidebar-bg: linear-gradient(180deg, rgba(14, 18, 13, 0.9), rgba(10, 13, 10, 0.7));
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyBVTxlZQxLL5SLWqKYpzv0HXd-6wByCAOQ",
+  authDomain: "kai-ke-fit-dashboard.firebaseapp.com",
+  projectId: "kai-ke-fit-dashboard",
+  storageBucket: "kai-ke-fit-dashboard.firebasestorage.app",
+  messagingSenderId: "585365049265",
+  appId: "1:585365049265:web:6b4c7468627d0dba94b790",
+  measurementId: "G-T5E7VSDKN3"
+};
 
-body { transition: background-color 0.25s ease, color 0.25s ease; }
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+let storage = null;
+try { storage = getStorage(app); } catch (_) { /* storage optional */ }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+const usersCollection = collection(db, "users");
+const checkinsCollection = collection(db, "checkins");
 
-html { scroll-behavior: smooth; }
+let users = [];
+let checkins = [];
+let currentWinIndex = 0;
+let currentWins = [];
+let currentPage = "dashboard";
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Hanken Grotesk", system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
+// ⚠️ Change this passcode to your own. Note: this is a soft gate (the code is
+// visible in this file). For real enforcement, use Firebase Auth + Security Rules.
+const ADMIN_CODE = "kingdom2026";
+const isAdmin = () => document.documentElement.dataset.admin === "true";
 
-/* Atmospheric background */
-.bg-fx {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(60% 50% at 78% 8%, rgba(200, 245, 61, 0.10), transparent 70%),
-    radial-gradient(50% 45% at 5% 95%, rgba(255, 94, 58, 0.10), transparent 70%),
-    radial-gradient(40% 40% at 50% 50%, rgba(255, 210, 74, 0.04), transparent 70%),
-    var(--bg);
-}
-.bg-fx::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
-  background-size: 4px 4px;
-  opacity: 0.6;
-}
+/* ---------------- Helpers ---------------- */
+const $ = (id) => document.getElementById(id);
+const monthKey = (d) => {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+};
+const currentMonthKey = () => monthKey(new Date());
+const formatMonth = (key) => {
+  const [y, m] = key.split("-");
+  return new Date(y, m - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+};
+const initials = (name) =>
+  name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+const stepPoints = (c) => Math.floor((Number(c.steps) || 0) / 1000);
+const points = (c) => (c.workout ? 1 : 0) + (c.diet ? 1 : 0) + (c.wonDay ? 1 : 0) + stepPoints(c);
+const escapeHtml = (s = "") =>
+  s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
-.app { display: flex; min-height: 100vh; }
+function userById(id) { return users.find((u) => u.id === id); }
 
-/* ---------- Sidebar ---------- */
-.sidebar {
-  width: 248px;
-  flex-shrink: 0;
-  padding: 28px 20px;
-  border-right: 1px solid var(--line);
-  background: var(--sidebar-bg);
-  backdrop-filter: blur(10px);
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-}
-
-.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 36px; }
-.brand-mark {
-  width: 44px; height: 44px;
-  display: grid; place-items: center;
-  border-radius: 13px;
-  background: var(--lime-fill);
-  color: #0a0d0a;
-  font-family: "Bricolage Grotesque", sans-serif;
-  font-weight: 800;
-  font-size: 18px;
-  box-shadow: 0 0 24px rgba(200, 245, 61, 0.35);
-}
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; line-height: 1.05; }
-.brand-sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em; }
-
-.nav { display: flex; flex-direction: column; gap: 6px; }
-.nav-btn {
-  display: flex; align-items: center; gap: 12px;
-  width: 100%;
-  padding: 13px 14px;
-  border: 1px solid transparent;
-  border-radius: 13px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  transition: all 0.18s ease;
-}
-.nav-btn .nav-ico { font-size: 15px; width: 18px; text-align: center; opacity: 0.7; }
-.nav-btn:hover { background: var(--hover); color: var(--text); }
-.nav-btn.active {
-  background: var(--lime-soft);
-  border-color: rgba(200, 245, 61, 0.3);
-  color: var(--lime);
-}
-.nav-btn.active .nav-ico { opacity: 1; }
-
-.side-foot {
-  margin-top: auto;
-  padding: 16px;
-  border-radius: 14px;
-  background: var(--flame-soft);
-  border: 1px solid rgba(255, 94, 58, 0.22);
-  text-align: center;
-}
-.streak-flame {
-  font-family: "Space Mono", monospace;
-  font-weight: 700;
-  font-size: 22px;
-  color: var(--flame);
-}
-.side-foot span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.14em; margin-top: 4px; }
-
-/* ---------- Main ---------- */
-.main { flex: 1; padding: 38px 42px 60px; max-width: 1320px; }
-.page { display: none; animation: fadeUp 0.4s ease both; }
-.page.active { display: block; }
-
-@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 24px;
-  margin-bottom: 26px;
-  flex-wrap: wrap;
-}
-.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.22em; color: var(--lime); font-weight: 700; }
-.title-block h2 {
-  font-family: "Bricolage Grotesque", sans-serif;
-  font-weight: 800;
-  font-size: 38px;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  margin: 4px 0;
-}
-.title-block p { color: var(--muted); font-size: 14px; }
-
-.month-select { display: flex; flex-direction: column; gap: 6px; }
-.month-select label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); }
-
-select, input[type="text"], textarea {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--inset);
-  color: var(--text);
-  font: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-select:focus, input:focus, textarea:focus {
-  outline: none;
-  border-color: var(--lime);
-  box-shadow: 0 0 0 3px var(--lime-soft);
-}
-.month-select select { width: auto; min-width: 180px; font-weight: 600; cursor: pointer; }
-textarea { min-height: 92px; resize: vertical; }
-
-/* Winner banner */
-.winner-banner {
-  display: flex; align-items: center; gap: 14px;
-  padding: 16px 20px;
-  margin-bottom: 22px;
-  border-radius: var(--r);
-  background: linear-gradient(100deg, rgba(255, 210, 74, 0.16), rgba(255, 210, 74, 0.04));
-  border: 1px solid rgba(255, 210, 74, 0.35);
-  font-size: 16px;
-}
-.winner-banner .crown { font-size: 26px; }
-.winner-banner b { color: var(--gold); font-family: "Bricolage Grotesque", sans-serif; }
-
-/* ---------- Stat cards ---------- */
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 20px;
-  backdrop-filter: blur(8px);
-  position: relative;
-  overflow: hidden;
-}
-.card::before {
-  content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
-  background: var(--lime); opacity: 0.55;
-}
-.card-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
-.card-value {
-  display: block; margin-top: 10px;
-  font-family: "Space Mono", monospace;
-  font-weight: 700;
-  font-size: 40px;
-  line-height: 1;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.card-frac { font-size: 22px; color: var(--faint); }
-.card-meta { display: block; margin-top: 8px; font-size: 12px; color: var(--faint); }
-
-/* ---------- Podium ---------- */
-.podium {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
-  align-items: end;
-  gap: 14px;
-  margin-bottom: 22px;
-}
-.podium-spot {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 20px 16px;
-  text-align: center;
-  position: relative;
-  animation: rise 0.5s ease both;
-}
-.podium-spot.p1 { border-color: rgba(255, 210, 74, 0.4); background: linear-gradient(180deg, rgba(255, 210, 74, 0.1), var(--panel)); padding-top: 28px; }
-.podium-spot.p2 { animation-delay: 0.05s; }
-.podium-spot.p1 { animation-delay: 0.1s; }
-.podium-spot.p3 { animation-delay: 0.15s; }
-@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-.podium-medal { font-size: 26px; }
-.podium-avatar {
-  width: 54px; height: 54px; margin: 8px auto 6px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 22px;
-  background: var(--inset); color: var(--text);
-  border: 2px solid var(--line-strong);
-}
-.p1 .podium-avatar { border-color: var(--gold); box-shadow: 0 0 22px rgba(255, 210, 74, 0.3); }
-.p2 .podium-avatar { border-color: var(--silver); }
-.p3 .podium-avatar { border-color: var(--bronze); }
-.podium-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
-.podium-points {
-  font-family: "Space Mono", monospace; font-weight: 700; font-size: 26px;
-  color: var(--lime); font-variant-numeric: tabular-nums;
-}
-.podium-points small { font-size: 12px; color: var(--muted); font-family: "Hanken Grotesk"; font-weight: 600; }
-.podium-streak { font-size: 12px; color: var(--flame); margin-top: 4px; }
-
-/* ---------- Panels ---------- */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 22px;
-  backdrop-filter: blur(8px);
-  margin-bottom: 22px;
-}
-.panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
-.panel-head h3 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 19px; letter-spacing: -0.01em; }
-.hint { font-size: 12px; color: var(--faint); }
-
-.dashboard-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 22px; }
-
-/* ---------- Leaderboard ---------- */
-.leaderboard { display: flex; flex-direction: column; gap: 8px; }
-.leader-row {
-  display: grid;
-  grid-template-columns: 44px 1fr auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--inset);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-.leader-row:hover { border-color: var(--line-strong); transform: translateX(3px); }
-.leader-row .rank {
-  font-family: "Space Mono", monospace; font-weight: 700; font-size: 18px;
-  color: var(--faint); font-variant-numeric: tabular-nums;
-}
-.leader-row.top .rank { color: var(--lime); }
-.leader-name { display: flex; align-items: center; gap: 10px; font-weight: 600; }
-.mini-avatar {
-  width: 30px; height: 30px; border-radius: 50%;
-  display: grid; place-items: center; flex-shrink: 0;
-  background: var(--lime-soft); color: var(--lime);
-  font-weight: 700; font-size: 13px;
-}
-.leader-streak { font-size: 12px; color: var(--flame); font-weight: 600; }
-.points {
-  font-family: "Space Mono", monospace; font-weight: 700; font-size: 18px;
-  color: var(--text); font-variant-numeric: tabular-nums;
-}
-.points small { color: var(--muted); font-size: 11px; font-family: "Hanken Grotesk"; }
-
-.leader-detail {
-  grid-column: 1 / -1;
-  display: none;
-  gap: 18px;
-  padding: 12px 4px 4px;
-  margin-top: 6px;
-  border-top: 1px solid var(--line);
-  flex-wrap: wrap;
-}
-.leader-row.open .leader-detail { display: flex; }
-.detail-stat { display: flex; flex-direction: column; }
-.detail-stat b { font-family: "Space Mono", monospace; font-size: 18px; color: var(--lime); }
-.detail-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
-
-.empty { padding: 30px; text-align: center; color: var(--faint); font-size: 14px; }
-
-/* ---------- Win spotlight ---------- */
-.spotlight-panel { display: flex; flex-direction: column; }
-.wins-slider {
-  flex: 1;
-  min-height: 150px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px;
-  background: var(--inset);
-  border-radius: 16px;
-  padding: 24px;
-  text-align: center;
-}
-.rotating-win {
-  font-family: "Bricolage Grotesque", sans-serif;
-  font-size: 19px; font-weight: 600; line-height: 1.35;
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-.rotating-win.fade { opacity: 0; transform: translateY(6px); }
-.rotating-win .who { color: var(--lime); display: block; font-size: 13px; font-family: "Hanken Grotesk"; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px; }
-.win-dots { display: flex; gap: 6px; }
-.win-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); transition: all 0.2s; }
-.win-dots i.on { background: var(--lime); width: 18px; border-radius: 3px; }
-
-.recent-wins { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-.recent-win { font-size: 13px; padding: 10px 12px; background: var(--inset); border-radius: 10px; color: var(--muted); }
-.recent-win b { color: var(--text); }
-
-/* ---------- Momentum chart ---------- */
-.momentum { width: 100%; }
-.momentum svg { width: 100%; height: auto; display: block; }
-.bar { transition: opacity 0.2s; }
-.bar:hover { opacity: 0.75; }
-
-/* ---------- Forms / Check in ---------- */
-.checkin-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; align-items: start; }
-.member-grid { display: grid; grid-template-columns: 360px 1fr; gap: 22px; align-items: start; }
-
-.form-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 24px;
-  backdrop-filter: blur(8px);
-}
-.field { display: block; margin-bottom: 18px; }
-.field-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
-.steps-note {
-  display: flex; gap: 12px; align-items: flex-start;
-  padding: 14px 16px; margin-bottom: 18px;
-  border-radius: 14px;
-  background: var(--lime-soft);
-  border: 1px solid rgba(200, 245, 61, 0.28);
-}
-.steps-note-ico { font-size: 20px; line-height: 1.2; }
-.steps-note b { display: block; font-size: 14px; color: var(--lime); margin-bottom: 2px; }
-.steps-note span { font-size: 13px; color: var(--muted); }
-
-.point-toggles { display: grid; gap: 10px; margin-bottom: 18px; }
-.toggle {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px;
-  border-radius: 14px;
-  background: var(--inset);
-  border: 1px solid var(--line);
-  cursor: pointer;
-  transition: all 0.16s ease;
-  user-select: none;
-}
-.toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.toggle-box {
-  width: 42px; height: 42px; border-radius: 11px;
-  display: grid; place-items: center; font-size: 20px;
-  background: var(--bg-2); border: 1px solid var(--line);
-  transition: all 0.16s ease;
-}
-.toggle-text { font-weight: 600; }
-.toggle:hover { border-color: var(--line-strong); }
-.toggle:has(input:checked) {
-  background: var(--lime-soft);
-  border-color: rgba(200, 245, 61, 0.4);
-}
-.toggle:has(input:checked) .toggle-box {
-  background: var(--lime-fill); border-color: var(--lime-fill);
-  box-shadow: 0 0 18px rgba(200, 245, 61, 0.4);
-}
-
-.file-drop {
-  position: relative;
-  border: 1.5px dashed var(--line-strong);
-  border-radius: 14px;
-  padding: 18px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.16s;
-}
-.file-drop:hover { border-color: var(--lime); }
-.file-drop input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.file-hint { color: var(--muted); font-size: 13px; }
-.image-preview { max-width: 100%; max-height: 200px; border-radius: 12px; margin-top: 12px; }
-
-.primary-btn {
-  width: 100%;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 15px 22px;
-  border: none;
-  border-radius: 14px;
-  background: var(--lime-fill);
-  color: #0a0d0a;
-  font: inherit; font-weight: 700; font-size: 15px;
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.16s ease;
-  box-shadow: 0 0 0 rgba(200, 245, 61, 0);
-}
-.primary-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(200, 245, 61, 0.25); }
-.primary-btn:active { transform: translateY(0); }
-.btn-points {
-  font-family: "Space Mono", monospace;
-  background: #0a0d0a; color: var(--lime-fill);
-  padding: 3px 9px; border-radius: 8px; font-size: 13px;
-}
-
-/* Status card */
-.status-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 22px;
-  backdrop-filter: blur(8px);
-}
-.status-card h3 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 18px; margin-bottom: 14px; }
-.user-status { color: var(--muted); font-size: 14px; }
-.status-row { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); }
-.status-row:last-child { border-bottom: none; }
-.status-row b { font-family: "Space Mono", monospace; color: var(--text); }
-.status-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
-  margin-bottom: 14px;
-}
-.status-pill.done { background: var(--lime-soft); color: var(--lime); }
-.status-pill.pending { background: var(--hover); color: var(--muted); }
-
-/* History */
-.history { display: flex; flex-direction: column; gap: 10px; }
-.history-row {
-  display: grid;
-  grid-template-columns: 48px 1fr auto auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--inset);
-  border: 1px solid var(--line);
-}
-.history-thumb {
-  width: 48px; height: 48px; border-radius: 11px; object-fit: cover;
-  background: var(--bg-2); display: grid; place-items: center; font-size: 20px;
-}
-.history-main b { display: block; }
-.history-main span { font-size: 12px; color: var(--muted); }
-.history-badges { display: flex; gap: 5px; }
-.badge {
-  width: 26px; height: 26px; border-radius: 7px;
-  display: grid; place-items: center; font-size: 13px;
-  background: var(--bg-2); opacity: 0.3;
-}
-.badge.on { opacity: 1; background: var(--lime-soft); }
-.del-btn {
-  width: 32px; height: 32px; border-radius: 9px;
-  border: 1px solid var(--line); background: transparent;
-  color: var(--muted); cursor: pointer; font-size: 15px;
-  transition: all 0.15s;
-}
-.del-btn:hover { background: var(--flame-soft); border-color: var(--flame); color: var(--flame); }
-
-/* User list */
-.user-list { display: flex; flex-direction: column; gap: 10px; }
-.user-row {
-  display: grid;
-  grid-template-columns: 40px 1fr auto auto;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
-  border-radius: 14px;
-  background: var(--inset);
-  border: 1px solid var(--line);
-}
-.user-row .mini-avatar { width: 40px; height: 40px; font-size: 15px; }
-.user-row .uname { font-weight: 600; }
-.user-meta { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); }
-.user-meta b { color: var(--lime); }
-
-/* ---------- Import ---------- */
-.import-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
-.import-note b { color: var(--text); }
-.wide-toggle { margin-bottom: 18px; }
-.map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.map-grid .field { margin-bottom: 16px; }
-.import-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
-.opt { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
-.opt select { width: auto; padding: 8px 12px; }
-.opt input[type="checkbox"] { width: auto; accent-color: var(--lime-fill); }
-
-.preview-table { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 18px; }
-.preview-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.preview-table th {
-  position: sticky; top: 0; text-align: left; padding: 11px 14px;
-  background: var(--panel-solid); color: var(--muted);
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-  border-bottom: 1px solid var(--line);
-}
-.preview-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
-.preview-table tr:last-child td { border-bottom: none; }
-.preview-table .num { font-family: "Space Mono", monospace; text-align: right; }
-.pbadge { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.pbadge.add { background: var(--lime-soft); color: var(--lime); }
-.pbadge.update { background: rgba(255, 210, 74, 0.15); color: var(--gold); }
-.pbadge.skip { background: var(--hover); color: var(--faint); }
-.pbadge.new { background: var(--flame-soft); color: var(--flame); }
-.preview-more { padding: 12px 14px; color: var(--faint); font-size: 13px; text-align: center; }
-
-@media (max-width: 760px) {
-  .map-grid { grid-template-columns: 1fr; }
-}
-
-/* ---------- Analytics ---------- */
-.step-chart { width: 100%; }
-.step-chart svg { width: 100%; height: auto; display: block; }
-
-.chart-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-.legend-item {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--inset);
-  color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s ease, border-color 0.15s ease;
-}
-.legend-item:hover { border-color: var(--line-strong); }
-.legend-item.off { opacity: 0.4; }
-.legend-swatch { width: 12px; height: 12px; border-radius: 4px; display: inline-block; flex-shrink: 0; }
-
-.analytics-table { overflow: auto; border-radius: 12px; border: 1px solid var(--line); max-height: 480px; }
-.analytics-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.analytics-table th {
-  position: sticky; top: 0; z-index: 1;
-  background: var(--panel-solid); color: var(--muted);
-  text-align: left; padding: 11px 14px;
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-  border-bottom: 1px solid var(--line); white-space: nowrap;
-}
-.analytics-table th.num, .analytics-table td.num { text-align: right; font-family: "Space Mono", monospace; }
-.analytics-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-.analytics-table td.mem { font-weight: 600; }
-.analytics-table td.mem .legend-swatch { margin-right: 8px; vertical-align: middle; }
-.analytics-table th:first-child, .analytics-table td:first-child {
-  position: sticky; left: 0; background: var(--panel-solid);
-}
-.analytics-table th:first-child { z-index: 2; }
-.analytics-table .peak { color: var(--lime); font-weight: 700; }
-.analytics-table .tot { font-weight: 700; color: var(--text); }
-.analytics-table .month-h { cursor: pointer; }
-.analytics-table .month-h:hover { color: var(--text); text-decoration: underline; }
-.analytics-table th.sel { color: var(--lime); }
-.analytics-table td.day { font-weight: 600; font-family: "Space Mono", monospace; }
-.analytics-table td.day .dow { color: var(--faint); font-size: 11px; margin-left: 7px; font-family: "Hanken Grotesk", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.analytics-table tr.weekend td { background: color-mix(in srgb, var(--inset) 55%, transparent); }
-.inline-select { width: auto; padding: 8px 12px; font-weight: 600; font-size: 13px; cursor: pointer; }
-.analytics-table tbody tr:hover td { background: var(--hover); }
-.analytics-table tfoot td {
-  position: sticky; bottom: 0;
-  border-top: 2px solid var(--line-strong); border-bottom: none;
-  font-weight: 700; color: var(--muted); background: var(--panel-solid);
-}
-.analytics-table tfoot td.mem { color: var(--text); }
-
-/* ---------- Admin gating ---------- */
-html:not([data-admin="true"]) .admin-only { display: none !important; }
-html[data-admin="true"] .guest-only { display: none !important; }
-.btn-inline { width: auto; }
-.admin-login-row { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
-.admin-login-row input { flex: 1; min-width: 180px; }
-.admin-login-row .btn-inline { display: inline-flex; align-items: center; }
-.admin-on { color: var(--lime); }
-#goImportBtn { gap: 8px; }
-#goImportBtn .nav-ico { font-size: 14px; }
-
-/* ---------- Settings ---------- */
-.setting-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 6px 2px;
-}
-.setting-text b { display: block; font-size: 15px; margin-bottom: 3px; }
-.setting-text span { font-size: 13px; color: var(--muted); }
-
-.theme-switch {
-  flex-shrink: 0;
-  border: none; background: none; padding: 0; cursor: pointer;
-}
-.switch-track {
-  position: relative;
-  display: flex; align-items: center; justify-content: space-between;
-  width: 66px; height: 34px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--inset);
-  border: 1px solid var(--line-strong);
-  transition: background 0.25s ease, border-color 0.25s ease;
-}
-.switch-ico { font-size: 14px; line-height: 1; z-index: 1; }
-.switch-ico.sun { color: var(--gold); }
-.switch-ico.moon { color: var(--faint); }
-.switch-thumb {
-  position: absolute; top: 3px; left: 3px;
-  width: 26px; height: 26px; border-radius: 50%;
-  background: var(--lime-fill);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.theme-switch.on .switch-thumb { transform: translateX(32px); }
-.theme-switch.on .switch-ico.moon { color: var(--gold); }
-.theme-switch.on .switch-ico.sun { color: var(--faint); }
-
-/* ---------- Toast ---------- */
-.toast {
-  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
-  background: var(--panel-solid);
-  border: 1px solid var(--lime);
-  color: var(--text);
-  padding: 14px 22px;
-  border-radius: 14px;
-  font-weight: 600;
-  box-shadow: var(--shadow);
-  opacity: 0; pointer-events: none;
-  transition: all 0.3s ease;
-  z-index: 100;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.err { border-color: var(--flame); }
-
-/* ---------- Modal ---------- */
-.modal {
-  position: fixed; inset: 0; z-index: 200;
-  display: grid; place-items: center;
-  background: rgba(5, 7, 5, 0.7);
-  backdrop-filter: blur(4px);
-  animation: fadeUp 0.2s ease;
-}
-.modal[hidden] { display: none; }
-.modal-card {
-  background: var(--panel-solid);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg);
-  padding: 26px;
-  max-width: 380px; width: 90%;
-  box-shadow: var(--shadow);
-}
-.modal-card h3 { font-family: "Bricolage Grotesque", sans-serif; font-size: 21px; margin-bottom: 8px; }
-.modal-card p { color: var(--muted); margin-bottom: 22px; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-.ghost-btn, .danger-btn {
-  padding: 11px 18px; border-radius: 11px; font: inherit; font-weight: 600; cursor: pointer;
-  border: 1px solid var(--line-strong);
-}
-.ghost-btn { background: transparent; color: var(--text); }
-.ghost-btn:hover { background: var(--hover); }
-.danger-btn { background: var(--flame); border-color: var(--flame); color: #1a0a06; }
-.danger-btn:hover { opacity: 0.9; }
-
-/* ---------- Responsive ---------- */
-@media (max-width: 980px) {
-  .cards { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-grid, .checkin-grid, .member-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 760px) {
-  .app { flex-direction: column; }
-  .sidebar {
-    width: 100%; height: auto; position: static;
-    flex-direction: row; align-items: center; gap: 8px;
-    padding: 14px 16px; overflow-x: auto;
+/* Current consecutive-day streak (ending today or yesterday) for a user */
+function currentStreak(userId) {
+  const days = new Set(
+    checkins.filter((c) => c.userId === userId).map((c) => new Date(c.date).toDateString())
+  );
+  if (days.size === 0) return 0;
+  let streak = 0;
+  const cursor = new Date();
+  // allow streak to be "alive" if they logged today OR yesterday
+  if (!days.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+  while (days.has(cursor.toDateString())) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
   }
-  .brand { margin-bottom: 0; margin-right: 8px; }
-  .brand-sub { display: none; }
-  .nav { flex-direction: row; }
-  .nav-btn { white-space: nowrap; padding: 10px 14px; }
-  .nav-btn .nav-ico { display: none; }
-  .side-foot { margin: 0 0 0 auto; padding: 8px 12px; }
-  .side-foot span { display: none; }
-  .streak-flame { font-size: 16px; }
-  .main { padding: 24px 18px 50px; }
-  .title-block h2 { font-size: 30px; }
-  .podium { grid-template-columns: 1fr; }
-  .cards { grid-template-columns: 1fr 1fr; }
+  return streak;
 }
+
+/* Per-member stats for a given month */
+function memberStats(userId, monthCheckins) {
+  const mine = monthCheckins.filter((c) => c.userId === userId);
+  const days = new Set(mine.map((c) => new Date(c.date).toDateString()));
+  return {
+    points: mine.reduce((s, c) => s + points(c), 0),
+    checkins: mine.length,
+    days: days.size,
+    perfect: mine.filter((c) => c.workout && c.diet && c.wonDay).length,
+    workouts: mine.filter((c) => c.workout).length,
+    diets: mine.filter((c) => c.diet).length,
+    wins: mine.filter((c) => c.wonDay).length,
+    steps: mine.reduce((s, c) => s + (Number(c.steps) || 0), 0),
+    streak: currentStreak(userId)
+  };
+}
+
+function checkedInToday(userId) {
+  const today = new Date().toDateString();
+  return checkins.some((c) => c.userId === userId && new Date(c.date).toDateString() === today);
+}
+
+/* ---------------- Navigation ---------------- */
+function showPage(pageId) {
+  if (pageId === "import" && !isAdmin()) pageId = "settings";
+  currentPage = pageId;
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  $(pageId)?.classList.add("active");
+  document.querySelectorAll(".nav-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.page === pageId)
+  );
+  renderAll();
+}
+window.showPage = showPage;
+
+document.querySelectorAll(".nav-btn").forEach((btn) =>
+  btn.addEventListener("click", () => showPage(btn.dataset.page))
+);
+
+/* ---------------- Month filter ---------------- */
+function populateMonthFilter() {
+  const sel = $("monthFilter");
+  if (!sel) return;
+  const prev = sel.value;
+  let months = [...new Set(checkins.map((c) => monthKey(c.date)))];
+  if (!months.includes(currentMonthKey())) months.push(currentMonthKey());
+  months.sort().reverse();
+  sel.innerHTML = "";
+  months.forEach((m) => {
+    const o = document.createElement("option");
+    o.value = m;
+    o.textContent = formatMonth(m);
+    sel.appendChild(o);
+  });
+  if (prev && months.includes(prev)) sel.value = prev;
+}
+$("monthFilter").addEventListener("change", renderDashboard);
+$("dayMonthFilter")?.addEventListener("change", (e) => {
+  analyticsDayMonth = e.target.value;
+  renderAnalytics();
+});
+
+/* ---------------- Dashboard ---------------- */
+function renderDashboard() {
+  if (currentPage !== "dashboard") return;
+  populateMonthFilter();
+  const selectedMonth = $("monthFilter").value || currentMonthKey();
+  $("dashTitle").textContent = formatMonth(selectedMonth) + " Leaderboard";
+
+  const monthCheckins = checkins.filter((c) => monthKey(c.date) === selectedMonth);
+
+  const scores = users
+    .map((u) => ({ id: u.id, name: u.name, ...memberStats(u.id, monthCheckins) }))
+    .sort((a, b) => b.points - a.points || b.days - a.days);
+
+  // Stat cards
+  const activeCount = scores.filter((s) => s.checkins > 0).length;
+  $("topScore").textContent = scores[0]?.points || 0;
+  $("topScoreName").textContent = scores[0] && scores[0].points > 0 ? scores[0].name : "—";
+  $("totalCheckins").textContent = monthCheckins.length;
+  $("perfectDays").textContent = monthCheckins.filter((c) => c.workout && c.diet && c.wonDay).length;
+  $("activeUsers").textContent = activeCount;
+  $("totalUsers").textContent = "/" + users.length;
+
+  $("sideStreak").textContent = "🔥 " + (users.reduce((m, u) => Math.max(m, currentStreak(u.id)), 0));
+
+  // Winner banner for completed past months
+  const banner = $("winnerBanner");
+  if (selectedMonth < currentMonthKey() && scores[0]?.points > 0) {
+    banner.hidden = false;
+    banner.innerHTML = `<span class="crown">🏆</span><div>${formatMonth(selectedMonth)} champion: <b>${escapeHtml(scores[0].name)}</b> with ${scores[0].points} points</div>`;
+  } else {
+    banner.hidden = true;
+  }
+
+  renderPodium(scores);
+  renderLeaderboard(scores);
+  renderMomentum(monthCheckins, selectedMonth);
+  renderWins();
+}
+
+function renderPodium(scores) {
+  const el = $("podium");
+  const top = scores.filter((s) => s.points > 0).slice(0, 3);
+  if (top.length === 0) {
+    el.innerHTML = `<div class="empty" style="grid-column:1/-1">No points logged yet this month — be the first on the board.</div>`;
+    return;
+  }
+  const order = [top[1], top[0], top[2]]; // 2nd, 1st, 3rd visual order
+  const medals = { 0: "🥇", 1: "🥈", 2: "🥉" };
+  const rankOf = { 0: "p1", 1: "p2", 2: "p3" };
+  el.innerHTML = order
+    .map((s) => {
+      if (!s) return `<div></div>`;
+      const place = top.indexOf(s);
+      return `
+        <div class="podium-spot ${rankOf[place]}">
+          <div class="podium-medal">${medals[place]}</div>
+          <div class="podium-avatar">${initials(s.name)}</div>
+          <div class="podium-name">${escapeHtml(s.name)}</div>
+          <div class="podium-points">${s.points}<small> pts</small></div>
+          ${s.streak > 1 ? `<div class="podium-streak">🔥 ${s.streak} day streak</div>` : ""}
+        </div>`;
+    })
+    .join("");
+}
+
+function renderLeaderboard(scores) {
+  const lb = $("leaderboard");
+  if (scores.length === 0) {
+    lb.innerHTML = `<div class="empty">No members yet. Add competitors on the Members page.</div>`;
+    return;
+  }
+  lb.innerHTML = scores
+    .map(
+      (s, i) => `
+      <div class="leader-row ${i < 3 && s.points > 0 ? "top" : ""}" data-toggle>
+        <div class="rank">${i + 1}</div>
+        <div class="leader-name">
+          <span class="mini-avatar">${initials(s.name)}</span>
+          <span>${escapeHtml(s.name)}</span>
+          ${s.streak > 1 ? `<span class="leader-streak">🔥${s.streak}</span>` : ""}
+        </div>
+        <div class="points">${s.points}<small> pts</small></div>
+        <div class="leader-detail">
+          <div class="detail-stat"><b>${s.days}</b><span>days active</span></div>
+          <div class="detail-stat"><b>${s.perfect}</b><span>perfect days</span></div>
+          <div class="detail-stat"><b>${s.workouts}</b><span>workouts</span></div>
+          <div class="detail-stat"><b>${s.diets}</b><span>diet days</span></div>
+          <div class="detail-stat"><b>${s.wins}</b><span>won days</span></div>
+        </div>
+      </div>`
+    )
+    .join("");
+  lb.querySelectorAll(".leader-row").forEach((row) =>
+    row.addEventListener("click", () => row.classList.toggle("open"))
+  );
+}
+
+/* SVG bar chart of total points per day in the month */
+function renderMomentum(monthCheckins, selectedMonth) {
+  const el = $("momentumChart");
+  const [y, m] = selectedMonth.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const totals = Array(daysInMonth).fill(0);
+  monthCheckins.forEach((c) => {
+    const d = new Date(c.date).getDate();
+    totals[d - 1] += points(c);
+  });
+  const max = Math.max(1, ...totals);
+  const W = 100, H = 30, gap = 0.6;
+  const bw = (W - gap * (daysInMonth - 1)) / daysInMonth;
+  const today = new Date();
+  const isCurrent = selectedMonth === currentMonthKey();
+
+  if (totals.every((t) => t === 0)) {
+    el.innerHTML = `<div class="empty">No activity logged this month yet.</div>`;
+    return;
+  }
+
+  let bars = "";
+  for (let i = 0; i < daysInMonth; i++) {
+    const h = (totals[i] / max) * (H - 4);
+    const x = i * (bw + gap);
+    const isToday = isCurrent && i + 1 === today.getDate();
+    const color = totals[i] === 0 ? "var(--line-strong)" : isToday ? "var(--flame)" : "var(--lime)";
+    bars += `<rect class="bar" x="${x}" y="${H - h}" width="${bw}" height="${Math.max(h, 0.5)}" rx="0.4" style="fill:${color}"><title>Day ${i + 1}: ${totals[i]} pts</title></rect>`;
+  }
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none">${bars}</svg>
+    <div style="display:flex;justify-content:space-between;color:var(--faint);font-size:11px;margin-top:6px">
+      <span>Day 1</span><span>Day ${daysInMonth}</span></div>`;
+}
+
+/* ---------------- Step Analytics ---------------- */
+const CHART_COLORS = ["#2e9e5b", "#e8663a", "#d9a520", "#3a86c8", "#8b5cf6", "#e05a8f", "#14b8a6", "#b45309", "#6366f1", "#84cc16"];
+let analyticsHidden = new Set();
+let analyticsDayMonth = null;
+
+const shortMonth = (key) => {
+  const [y, m] = key.split("-");
+  return new Date(y, m - 1).toLocaleDateString("en-US", { month: "short" }) + " '" + String(y).slice(2);
+};
+const fmtK = (v) => (v >= 1000 ? (Math.round((v / 1000) * 10) / 10).toString().replace(/\.0$/, "") + "k" : String(v));
+function niceStep(x) {
+  if (x <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(x)));
+  const f = x / mag;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+}
+
+function renderAnalytics() {
+  if (currentPage !== "analytics") return;
+
+  const cardsEl = $("stepStatCards"), legendEl = $("stepLegend"), chartEl = $("stepChart"), tableEl = $("stepTable");
+  if (!chartEl) return;
+
+  const months = [...new Set(checkins.map((c) => monthKey(c.date)))].sort();
+  const stepFor = (uid, mk) =>
+    checkins.filter((c) => c.userId === uid && monthKey(c.date) === mk).reduce((s, c) => s + (Number(c.steps) || 0), 0);
+
+  const members = users
+    .map((u) => ({ id: u.id, name: u.name, total: checkins.filter((c) => c.userId === u.id).reduce((s, c) => s + (Number(c.steps) || 0), 0) }))
+    .filter((m) => m.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  if (months.length === 0 || members.length === 0) {
+    cardsEl.innerHTML = "";
+    legendEl.innerHTML = "";
+    tableEl.innerHTML = "";
+    chartEl.innerHTML = `<div class="empty">No step data yet. Import steps and the trends will show up here.</div>`;
+    return;
+  }
+
+  const colorOf = {};
+  members.forEach((m, i) => (colorOf[m.id] = CHART_COLORS[i % CHART_COLORS.length]));
+
+  // ---- Stat cards ----
+  const grandTotal = members.reduce((s, m) => s + m.total, 0);
+  const thisMonth = months.includes(currentMonthKey()) ? currentMonthKey() : months[months.length - 1];
+  const thisMonthTotal = members.reduce((s, m) => s + stepFor(m.id, thisMonth), 0);
+  const monthTotals = months.map((mk) => ({ mk, total: members.reduce((s, m) => s + stepFor(m.id, mk), 0) }));
+  const best = monthTotals.reduce((a, b) => (b.total > a.total ? b : a), monthTotals[0]);
+  const top = members[0];
+  cardsEl.innerHTML = `
+    <div class="card"><span class="card-label">Total Steps</span><span class="card-value">${fmtK(grandTotal)}</span><span class="card-meta">all members, all time</span></div>
+    <div class="card"><span class="card-label">${formatMonth(thisMonth)}</span><span class="card-value">${fmtK(thisMonthTotal)}</span><span class="card-meta">group steps</span></div>
+    <div class="card"><span class="card-label">Best Month</span><span class="card-value">${fmtK(best.total)}</span><span class="card-meta">${formatMonth(best.mk)}</span></div>
+    <div class="card"><span class="card-label">Top Stepper</span><span class="card-value" style="font-size:22px;line-height:1.1;word-break:break-word">${escapeHtml(top.name)}</span><span class="card-meta">${top.total.toLocaleString()} steps</span></div>`;
+
+  // ---- Legend ----
+  legendEl.innerHTML = members
+    .map(
+      (m) => `<button class="legend-item ${analyticsHidden.has(m.id) ? "off" : ""}" data-series="${m.id}">
+        <span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</button>`
+    )
+    .join("");
+  legendEl.querySelectorAll(".legend-item").forEach((b) =>
+    b.addEventListener("click", () => {
+      const id = b.dataset.series;
+      analyticsHidden.has(id) ? analyticsHidden.delete(id) : analyticsHidden.add(id);
+      renderAnalytics();
+    })
+  );
+
+  // ---- Line chart ----
+  const visible = members.filter((m) => !analyticsHidden.has(m.id));
+  const W = 820, H = 360, padL = 54, padR = 18, padT = 16, padB = 38;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const rawMax = Math.max(1, ...visible.flatMap((m) => months.map((mk) => stepFor(m.id, mk))));
+  const tick = niceStep(rawMax / 4);
+  const yMax = Math.max(tick, Math.ceil(rawMax / tick) * tick);
+  const xFor = (i) => padL + (months.length === 1 ? plotW / 2 : (i / (months.length - 1)) * plotW);
+  const yFor = (v) => padT + plotH - (v / yMax) * plotH;
+
+  let grid = "";
+  for (let v = 0; v <= yMax + 0.5; v += tick) {
+    const y = yFor(v).toFixed(1);
+    grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--line)" stroke-width="1"/>`;
+    grid += `<text x="${padL - 8}" y="${(+y + 4).toFixed(1)}" text-anchor="end" style="fill:var(--faint)" font-size="11">${fmtK(v)}</text>`;
+  }
+  const xlabels = months
+    .map((mk, i) => `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 22}" text-anchor="middle" style="fill:var(--muted)" font-size="11">${shortMonth(mk)}</text>`)
+    .join("");
+
+  let series = "";
+  visible.forEach((m) => {
+    const pts = months.map((mk, i) => `${xFor(i).toFixed(1)},${yFor(stepFor(m.id, mk)).toFixed(1)}`);
+    if (months.length > 1)
+      series += `<polyline points="${pts.join(" ")}" fill="none" stroke="${colorOf[m.id]}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    months.forEach((mk, i) => {
+      const v = stepFor(m.id, mk);
+      series += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="3.6" fill="${colorOf[m.id]}"><title>${escapeHtml(m.name)} — ${formatMonth(mk)}: ${v.toLocaleString()} steps</title></circle>`;
+    });
+  });
+
+  chartEl.innerHTML = visible.length
+    ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${grid}${xlabels}${series}</svg>`
+    : `<div class="empty">All members hidden — tap a name above to bring them back.</div>`;
+
+  // ---- Breakdown table ----
+  const cell = (v) => (v > 0 ? v.toLocaleString() : "—");
+  const rows = members
+    .map((m) => {
+      const vals = months.map((mk) => stepFor(m.id, mk));
+      const peak = Math.max(...vals);
+      const tds = vals.map((v) => `<td class="num ${v === peak && v > 0 ? "peak" : ""}">${cell(v)}</td>`).join("");
+      return `<tr><td class="mem"><span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</td>${tds}<td class="num tot">${m.total.toLocaleString()}</td></tr>`;
+    })
+    .join("");
+  const foot = months.map((mk) => `<td class="num">${monthTotals.find((x) => x.mk === mk).total.toLocaleString()}</td>`).join("");
+  tableEl.innerHTML = `
+    <table>
+      <thead><tr><th>Member</th>${months
+        .map((mk) => `<th class="num month-h ${mk === analyticsDayMonth ? "sel" : ""}" data-month="${mk}" title="View daily breakdown">${shortMonth(mk)}</th>`)
+        .join("")}<th class="num">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td class="mem">Group</td>${foot}<td class="num tot">${grandTotal.toLocaleString()}</td></tr></tfoot>
+    </table>`;
+  tableEl.querySelectorAll("[data-month]").forEach((th) =>
+    th.addEventListener("click", () => {
+      analyticsDayMonth = th.dataset.month;
+      renderAnalytics();
+      $("dayTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    })
+  );
+
+  // ---- Daily breakdown (drill-down into one month) ----
+  const dfilter = $("dayMonthFilter");
+  if (!analyticsDayMonth || !months.includes(analyticsDayMonth)) analyticsDayMonth = months[months.length - 1];
+  if (dfilter) {
+    dfilter.innerHTML = months
+      .slice()
+      .reverse()
+      .map((mk) => `<option value="${mk}">${formatMonth(mk)}</option>`)
+      .join("");
+    dfilter.value = analyticsDayMonth;
+  }
+
+  const [dy, dm] = analyticsDayMonth.split("-").map(Number);
+  const monthChk = checkins.filter((c) => monthKey(c.date) === analyticsDayMonth);
+  const dayMap = {}; // "day|userId" -> steps
+  monthChk.forEach((c) => {
+    const day = new Date(c.date).getDate();
+    const k = day + "|" + c.userId;
+    dayMap[k] = (dayMap[k] || 0) + (Number(c.steps) || 0);
+  });
+  const dget = (uid, day) => dayMap[day + "|" + uid] || 0;
+  const daysInMonth = new Date(dy, dm, 0).getDate();
+  let lastDay = 0;
+  for (let d = 1; d <= daysInMonth; d++) if (members.some((m) => dget(m.id, d) > 0)) lastDay = d;
+
+  const dayTableEl = $("dayTable");
+  if (lastDay === 0) {
+    dayTableEl.innerHTML = `<div class="empty">No step data for ${formatMonth(analyticsDayMonth)} yet.</div>`;
+    return;
+  }
+
+  const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const memTotal = (uid) => monthChk.filter((c) => c.userId === uid).reduce((s, c) => s + (Number(c.steps) || 0), 0);
+  let dayRows = "";
+  for (let d = 1; d <= lastDay; d++) {
+    const wd = dow[new Date(dy, dm - 1, d).getDay()];
+    const isWeekend = wd === "Sat" || wd === "Sun";
+    const vals = members.map((m) => dget(m.id, d));
+    const dmax = Math.max(...vals);
+    const cells = vals
+      .map((v) => `<td class="num ${v === dmax && v > 0 ? "peak" : ""}">${v > 0 ? v.toLocaleString() : "—"}</td>`)
+      .join("");
+    const dtot = vals.reduce((s, v) => s + v, 0);
+    dayRows += `<tr class="${isWeekend ? "weekend" : ""}"><td class="day">${dm}/${d}<span class="dow">${wd}</span></td>${cells}<td class="num tot">${dtot > 0 ? dtot.toLocaleString() : "—"}</td></tr>`;
+  }
+  const dayFoot = members.map((m) => `<td class="num">${memTotal(m.id).toLocaleString()}</td>`).join("");
+  const dayGrand = members.reduce((s, m) => s + memTotal(m.id), 0);
+  const dayHead = members
+    .map((m) => `<th class="num"><span class="legend-swatch" style="background:${colorOf[m.id]};margin-right:6px;vertical-align:middle"></span>${escapeHtml(m.name)}</th>`)
+    .join("");
+  dayTableEl.innerHTML = `
+    <table>
+      <thead><tr><th>Day</th>${dayHead}<th class="num">Daily Total</th></tr></thead>
+      <tbody>${dayRows}</tbody>
+      <tfoot><tr><td class="mem">Total</td>${dayFoot}<td class="num tot">${dayGrand.toLocaleString()}</td></tr></tfoot>
+    </table>`;
+}
+
+/* ---------------- Wins ---------------- */
+function renderWins() {
+  // Prefer yesterday's wins; fall back to most recent wins
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yKey = yesterday.toDateString();
+
+  const withWin = checkins.filter((c) => c.win && c.win.trim());
+  const yWins = withWin.filter((c) => new Date(c.date).toDateString() === yKey);
+
+  const source = yWins.length ? yWins : [...withWin].sort((a, b) => new Date(b.date) - new Date(a.date));
+  $("spotlightTag").textContent = yWins.length ? "yesterday" : "recent";
+
+  currentWins = source.map((c) => ({
+    who: userById(c.userId)?.name || "Someone",
+    text: c.win.trim()
+  }));
+
+  if (currentWinIndex >= currentWins.length) currentWinIndex = 0;
+  paintSpotlight();
+
+  // Recent wins list (latest 4, excluding the spotlighted ordering)
+  const recent = [...withWin].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+  $("recentWins").innerHTML = recent.length
+    ? recent
+        .map(
+          (c) =>
+            `<div class="recent-win"><b>${escapeHtml(userById(c.userId)?.name || "Someone")}</b> — ${escapeHtml(c.win.trim())}</div>`
+        )
+        .join("")
+    : "";
+}
+
+function paintSpotlight() {
+  const el = $("rotatingWin");
+  const dots = $("winDots");
+  if (!el) return;
+  if (currentWins.length === 0) {
+    el.innerHTML = "No wins submitted yet — log one on your next check-in.";
+    if (dots) dots.innerHTML = "";
+    return;
+  }
+  const w = currentWins[currentWinIndex % currentWins.length];
+  el.innerHTML = `“${escapeHtml(w.text)}”<span class="who">— ${escapeHtml(w.who)}</span>`;
+  if (dots) {
+    const n = Math.min(currentWins.length, 6);
+    dots.innerHTML = Array.from({ length: n }, (_, i) =>
+      `<i class="${i === currentWinIndex % n ? "on" : ""}"></i>`
+    ).join("");
+  }
+}
+
+setInterval(() => {
+  if (currentWins.length <= 1) return;
+  const el = $("rotatingWin");
+  el?.classList.add("fade");
+  setTimeout(() => {
+    currentWinIndex++;
+    paintSpotlight();
+    el?.classList.remove("fade");
+  }, 350);
+}, 5000);
+
+/* ---------------- Members page ---------------- */
+function renderUsers() {
+  const sel = $("checkinUser");
+  const list = $("userList");
+
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = "";
+    users.forEach((u) => {
+      const o = document.createElement("option");
+      o.value = u.id;
+      o.textContent = u.name;
+      sel.appendChild(o);
+    });
+    if (prev && users.some((u) => u.id === prev)) sel.value = prev;
+  }
+
+  if (list) {
+    $("memberCount").textContent = `${users.length} member${users.length === 1 ? "" : "s"}`;
+    list.innerHTML = users.length
+      ? users
+          .map((u) => {
+            const mc = checkins.filter((c) => monthKey(c.date) === currentMonthKey());
+            const st = memberStats(u.id, mc);
+            return `
+            <div class="user-row">
+              <span class="mini-avatar">${initials(u.name)}</span>
+              <span class="uname">${escapeHtml(u.name)}</span>
+              <span class="user-meta"><b>${st.points}</b> pts · 🔥${st.streak}</span>
+              <button class="del-btn admin-only" data-del-user="${u.id}" title="Remove member">✕</button>
+            </div>`;
+          })
+          .join("")
+      : `<div class="empty">No members yet. Add your first competitor above.</div>`;
+
+    list.querySelectorAll("[data-del-user]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        if (!isAdmin()) return;
+        const u = userById(btn.dataset.delUser);
+        confirmAction(
+          "Remove member?",
+          `This removes ${u?.name || "this member"} from the roster. Their past check-ins stay in history.`,
+          async () => {
+            await deleteDoc(doc(db, "users", btn.dataset.delUser));
+            toast("Member removed");
+          }
+        );
+      })
+    );
+  }
+
+  updateUserStatus();
+}
+
+/* ---------------- Check-in history ---------------- */
+function renderHistory() {
+  const el = $("checkinHistory");
+  if (!el) return;
+  const recent = [...checkins].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 15);
+  el.innerHTML = recent.length
+    ? recent
+        .map((c) => {
+          const name = userById(c.userId)?.name || "Unknown";
+          const when = new Date(c.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const stepStr = Number(c.steps) ? ` · 👟 ${Number(c.steps).toLocaleString()}` : "";
+          const thumb = c.imageUrl
+            ? `<img class="history-thumb" src="${c.imageUrl}" alt="" />`
+            : `<div class="history-thumb">${c.imageName ? "🖼️" : "💪"}</div>`;
+          return `
+          <div class="history-row">
+            ${thumb}
+            <div class="history-main">
+              <b>${escapeHtml(name)} <span style="color:var(--lime);font-family:'Space Mono'">+${points(c)}</span></b>
+              <span>${when}${stepStr}${c.win ? " · " + escapeHtml(c.win.trim()) : ""}</span>
+            </div>
+            <div class="history-badges">
+              <span class="badge ${c.workout ? "on" : ""}">🏋️</span>
+              <span class="badge ${c.diet ? "on" : ""}">🥗</span>
+              <span class="badge ${c.wonDay ? "on" : ""}">🏆</span>
+            </div>
+            <button class="del-btn admin-only" data-del-checkin="${c.id}" title="Delete check-in">🗑</button>
+          </div>`;
+        })
+        .join("")
+    : `<div class="empty">No check-ins yet.</div>`;
+
+  el.querySelectorAll("[data-del-checkin]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      if (!isAdmin()) return;
+      confirmAction("Delete check-in?", "This permanently removes the entry and its points.", async () => {
+        await deleteDoc(doc(db, "checkins", btn.dataset.delCheckin));
+        toast("Check-in deleted");
+      });
+    })
+  );
+}
+
+/* ---------------- Check-in status card + live points ---------------- */
+function updateLivePoints() {
+  let p = 0;
+  if ($("workout")?.checked) p++;
+  if ($("diet")?.checked) p++;
+  if ($("wonDay")?.checked) p++;
+  $("livePoints").textContent = p;
+}
+["workout", "diet", "wonDay"].forEach((id) =>
+  $(id)?.addEventListener("change", updateLivePoints)
+);
+
+function updateUserStatus() {
+  const card = $("userStatus");
+  const sel = $("checkinUser");
+  if (!card || !sel) return;
+  const id = sel.value;
+  if (!id) {
+    card.innerHTML = "Select a member to see their stats.";
+    return;
+  }
+  const mc = checkins.filter((c) => monthKey(c.date) === currentMonthKey());
+  const st = memberStats(id, mc);
+  const done = checkedInToday(id);
+  card.innerHTML = `
+    <div class="status-pill ${done ? "done" : "pending"}">${done ? "✓ Logged today" : "○ Not logged today"}</div>
+    <div class="status-row"><span>Current streak</span><b>🔥 ${st.streak}</b></div>
+    <div class="status-row"><span>Points this month</span><b>${st.points}</b></div>
+    <div class="status-row"><span>Steps this month</span><b>${st.steps.toLocaleString()}</b></div>
+    <div class="status-row"><span>Days active</span><b>${st.days}</b></div>
+    <div class="status-row"><span>Perfect days</span><b>${st.perfect}</b></div>`;
+}
+$("checkinUser")?.addEventListener("change", updateUserStatus);
+
+/* Image preview */
+$("imageUpload")?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  const preview = $("imagePreview");
+  const hint = $("fileHint");
+  if (file) {
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    hint.textContent = file.name;
+  } else {
+    preview.hidden = true;
+    hint.textContent = "Tap to attach a progress pic";
+  }
+});
+
+/* ---------------- Forms ---------------- */
+$("newUserForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("newUserName").value.trim();
+  if (!name) return;
+  if (users.some((u) => u.name.toLowerCase() === name.toLowerCase())) {
+    toast("That member already exists", true);
+    return;
+  }
+  await addDoc(usersCollection, { name, createdAt: serverTimestamp() });
+  $("newUserName").value = "";
+  toast(`${name} added to the crew`);
+});
+
+$("checkinForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const userId = $("checkinUser").value;
+  if (!userId) { toast("Pick a member first", true); return; }
+
+  const submitBtn = $("checkinForm").querySelector(".primary-btn");
+
+  const doSubmit = async () => {
+    submitBtn.disabled = true;
+    const file = $("imageUpload")?.files?.[0] || null;
+    let imageName = file?.name || null;
+    let imageUrl = null;
+
+    // Attempt real upload to Firebase Storage; fall back gracefully if unavailable
+    if (file && storage) {
+      try {
+        const r = storageRef(storage, `checkins/${Date.now()}_${file.name}`);
+        await uploadBytes(r, file);
+        imageUrl = await getDownloadURL(r);
+      } catch (err) {
+        console.warn("Image upload skipped (Storage not available):", err?.code || err);
+      }
+    }
+
+    try {
+      await addDoc(checkinsCollection, {
+        userId,
+        workout: $("workout").checked,
+        diet: $("diet").checked,
+        wonDay: $("wonDay").checked,
+        win: $("dailyWin").value.trim(),
+        imageName,
+        imageUrl,
+        date: new Date().toISOString(),
+        createdAt: serverTimestamp()
+      });
+      $("checkinForm").reset();
+      $("imagePreview").hidden = true;
+      $("fileHint").textContent = "Tap to attach a progress pic";
+      updateLivePoints();
+      updateUserStatus();
+      toast("Check-in submitted 💪");
+    } catch (err) {
+      toast("Something went wrong saving that", true);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  };
+
+  // Guard against duplicate same-day check-ins
+  if (checkedInToday(userId)) {
+    const name = userById(userId)?.name || "This member";
+    confirmAction(
+      "Already logged today",
+      `${name} already has a check-in today. Add another anyway?`,
+      doSubmit,
+      "Add anyway"
+    );
+  } else {
+    doSubmit();
+  }
+});
+
+/* ---------------- Toast + confirm ---------------- */
+let toastTimer;
+function toast(msg, isErr = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.toggle("err", isErr);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+let confirmCallback = null;
+function confirmAction(title, body, cb, okLabel = "Delete") {
+  $("confirmTitle").textContent = title;
+  $("confirmBody").textContent = body;
+  $("confirmOk").textContent = okLabel;
+  confirmCallback = cb;
+  $("confirmModal").hidden = false;
+}
+$("confirmCancel").addEventListener("click", () => { $("confirmModal").hidden = true; confirmCallback = null; });
+$("confirmModal").addEventListener("click", (e) => {
+  if (e.target.id === "confirmModal") { $("confirmModal").hidden = true; confirmCallback = null; }
+});
+$("confirmOk").addEventListener("click", async () => {
+  $("confirmModal").hidden = true;
+  const cb = confirmCallback;
+  confirmCallback = null;
+  if (cb) await cb();
+});
+
+/* ---------------- CSV Step Import ---------------- */
+let csvHeaders = [];
+let csvRows = [];
+let importPlan = [];
+
+// RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines, escaped quotes
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else field += ch;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+function parseImportDate(s) {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  // ISO date (YYYY-MM-DD or YYYY/MM/DD): parse as LOCAL, not UTC, to avoid a
+  // one-day shift in timezones behind UTC. new Date("2026-06-01") is UTC midnight.
+  let m = t.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0);
+  // DD/MM/YYYY and DD-MM-YYYY
+  m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (m) {
+    let [, a, b, y] = m;
+    if (y.length === 2) y = "20" + y;
+    const dd = new Date(+y, +b - 1, +a, 12);
+    if (!isNaN(dd)) return dd;
+  }
+  // Fallback for text dates like "Jun 1, 2026"; normalize to local noon
+  const d = new Date(t);
+  if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  return null;
+}
+
+const isDateHeader = (h) => parseImportDate(h) !== null && /\d/.test(h);
+const cleanSteps = (v) => parseInt(String(v).replace(/[^0-9]/g, ""), 10);
+
+function fillColSelect(sel, headers, chosen) {
+  if (!sel) return;
+  sel.innerHTML = "";
+  headers.forEach((h, i) => {
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = h.trim() || `Column ${i + 1}`;
+    sel.appendChild(o);
+  });
+  if (chosen >= 0) sel.value = chosen;
+}
+
+function handleCSV(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) { toast("That CSV looks empty", true); return; }
+
+  csvHeaders = rows[0];
+  csvRows = rows.slice(1);
+
+  const lower = csvHeaders.map((h) => h.toLowerCase().trim());
+  const findCol = (...keys) => lower.findIndex((h) => keys.some((k) => h.includes(k)));
+  const nameIdx = findCol("name", "member", "user", "participant", "player");
+  const dateIdx = findCol("date", "day");
+  const stepsIdx = findCol("step");
+
+  const dateHeaderCount = csvHeaders.filter(isDateHeader).length;
+  const wide = dateHeaderCount >= 2;
+
+  fillColSelect($("mapName"), csvHeaders, nameIdx >= 0 ? nameIdx : 0);
+  fillColSelect($("mapDate"), csvHeaders, dateIdx);
+  fillColSelect($("mapSteps"), csvHeaders, stepsIdx);
+  $("wideMode").checked = wide;
+  toggleWideUI();
+
+  $("formatTag").textContent = `${csvRows.length} rows · ${csvHeaders.length} columns`;
+  $("importConfig").hidden = false;
+  $("importPreview").hidden = true;
+  $("csvHint").textContent = "✓ File loaded — map the columns below";
+}
+
+function toggleWideUI() {
+  const wide = $("wideMode").checked;
+  $("mapDateWrap").style.display = wide ? "none" : "";
+  $("mapStepsWrap").style.display = wide ? "none" : "";
+}
+
+function buildPlan() {
+  const wide = $("wideMode").checked;
+  const dupeMode = $("dupeMode").value;
+  const createMissing = $("createMissing").checked;
+  const nameIdx = +$("mapName").value;
+  const raw = [];
+
+  if (wide) {
+    const dateCols = csvHeaders
+      .map((h, i) => ({ i, date: parseImportDate(h) }))
+      .filter((o) => o.i !== nameIdx && o.date);
+    csvRows.forEach((r) => {
+      const name = (r[nameIdx] || "").trim();
+      if (!name) return;
+      dateCols.forEach((dc) => {
+        const steps = cleanSteps(r[dc.i]);
+        if (steps) raw.push({ name, date: dc.date, steps });
+      });
+    });
+  } else {
+    const dateIdx = +$("mapDate").value;
+    const stepsIdx = +$("mapSteps").value;
+    csvRows.forEach((r) => {
+      const name = (r[nameIdx] || "").trim();
+      const date = parseImportDate(r[dateIdx]);
+      const steps = cleanSteps(r[stepsIdx]);
+      if (name && date && steps) raw.push({ name, date, steps });
+    });
+  }
+
+  // Dedupe within the CSV by name+day (last value wins)
+  const map = new Map();
+  raw.forEach((e) => map.set(e.name.toLowerCase() + "|" + e.date.toDateString(), e));
+
+  importPlan = [...map.values()].map((e) => {
+    const member = users.find((u) => u.name.toLowerCase() === e.name.toLowerCase());
+    const existing = member
+      ? checkins.find((c) => c.userId === member.id && new Date(c.date).toDateString() === e.date.toDateString())
+      : null;
+    let action;
+    if (existing) {
+      const hasSteps = (Number(existing.steps) || 0) > 0;
+      // A check-in with no step data (e.g. a habit-only check-in) should get its
+      // steps filled in, even in Skip mode. Skip only protects real step data.
+      if (!hasSteps) action = "fill";
+      else action = dupeMode === "overwrite" ? "update" : "skip";
+    } else if (!member && !createMissing) action = "skip";
+    else action = "add";
+    return {
+      name: e.name,
+      memberId: member?.id || null,
+      isNewMember: !member && createMissing,
+      date: e.date,
+      steps: e.steps,
+      points: Math.floor(e.steps / 1000),
+      action,
+      existingId: existing?.id || null
+    };
+  });
+
+  renderPreview();
+}
+
+function renderPreview() {
+  const add = importPlan.filter((p) => p.action === "add").length;
+  const fill = importPlan.filter((p) => p.action === "fill").length;
+  const upd = importPlan.filter((p) => p.action === "update").length;
+  const skip = importPlan.filter((p) => p.action === "skip").length;
+  const newMembers = new Set(importPlan.filter((p) => p.isNewMember && p.action !== "skip").map((p) => p.name.toLowerCase())).size;
+  const willWrite = add + fill + upd;
+
+  $("previewSummary").textContent =
+    `${add} new · ${fill} filled · ${upd} overwritten · ${skip} skipped` +
+    (newMembers ? ` · ${newMembers} new member${newMembers === 1 ? "" : "s"}` : "");
+  $("importCount").textContent = willWrite;
+
+  const badge = { add: "add", fill: "add", update: "update", skip: "skip" };
+  const label = { add: "Add", fill: "Add steps", update: "Overwrite", skip: "Skip" };
+  const shown = importPlan.slice(0, 80);
+
+  $("previewTable").innerHTML = `
+    <table>
+      <thead><tr><th>Member</th><th>Date</th><th class="num">Steps</th><th class="num">Pts</th><th>Action</th></tr></thead>
+      <tbody>
+        ${shown
+          .map(
+            (p) => `<tr>
+              <td>${escapeHtml(p.name)}${p.isNewMember && p.action !== "skip" ? ' <span class="pbadge new">new</span>' : ""}</td>
+              <td>${p.date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
+              <td class="num">${p.steps.toLocaleString()}</td>
+              <td class="num">${p.points}</td>
+              <td><span class="pbadge ${badge[p.action]}">${label[p.action]}</span></td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+    ${importPlan.length > shown.length ? `<div class="preview-more">…and ${importPlan.length - shown.length} more</div>` : ""}`;
+
+  $("importPreview").hidden = false;
+  $("runImportBtn").disabled = willWrite === 0;
+}
+
+async function runImport() {
+  const btn = $("runImportBtn");
+  btn.disabled = true;
+  const work = importPlan.filter((p) => p.action !== "skip");
+
+  // Create any new members first, then map names -> ids
+  const newNames = [...new Set(work.filter((p) => p.isNewMember).map((p) => p.name))];
+  const nameToId = {};
+  try {
+    for (const name of newNames) {
+      const ref = await addDoc(usersCollection, { name, createdAt: serverTimestamp() });
+      nameToId[name.toLowerCase()] = ref.id;
+    }
+  } catch (e) {
+    toast("Couldn't create members — check your Firestore rules", true);
+    btn.disabled = false;
+    return;
+  }
+
+  const writes = [];
+  for (const p of work) {
+    const memberId = p.memberId || nameToId[p.name.toLowerCase()];
+    if (!memberId) continue;
+    if ((p.action === "update" || p.action === "fill") && p.existingId) {
+      writes.push(updateDoc(doc(db, "checkins", p.existingId), { steps: p.steps }));
+    } else {
+      writes.push(
+        addDoc(checkinsCollection, {
+          userId: memberId,
+          workout: false, diet: false, wonDay: false,
+          steps: p.steps,
+          win: "",
+          imageName: null, imageUrl: null,
+          date: new Date(p.date).toISOString(),
+          createdAt: serverTimestamp(),
+          source: "csv"
+        })
+      );
+    }
+  }
+
+  try {
+    await Promise.all(writes);
+    toast(`Imported ${writes.length} step entr${writes.length === 1 ? "y" : "ies"} 🎉`);
+    $("importConfig").hidden = true;
+    $("importPreview").hidden = true;
+    $("csvUpload").value = "";
+    $("csvHint").textContent = "Tap to choose your Step Up CSV export";
+    importPlan = [];
+  } catch (e) {
+    toast("Some entries failed to save", true);
+    btn.disabled = false;
+  }
+}
+
+$("csvUpload")?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => handleCSV(String(reader.result));
+  reader.onerror = () => toast("Couldn't read that file", true);
+  reader.readAsText(file);
+});
+$("wideMode")?.addEventListener("change", toggleWideUI);
+$("previewBtn")?.addEventListener("click", buildPlan);
+$("runImportBtn")?.addEventListener("click", runImport);
+$("resetStepsBtn")?.addEventListener("click", () => {
+  if (!isAdmin()) return;
+  confirmAction(
+    "Reset all step data?",
+    "This deletes imported step entries and clears step counts from check-ins so you can re-import cleanly. Members and their workout / diet / won-the-day check-ins are kept. This can't be undone.",
+    async () => {
+      const dels = checkins.filter((c) => c.source === "csv").map((c) => deleteDoc(doc(db, "checkins", c.id)));
+      const zeros = checkins
+        .filter((c) => c.source !== "csv" && (Number(c.steps) || 0) > 0)
+        .map((c) => updateDoc(doc(db, "checkins", c.id), { steps: 0 }));
+      try {
+        await Promise.all([...dels, ...zeros]);
+        toast(`Step data cleared — re-import when ready`);
+      } catch (e) {
+        toast("Some entries couldn't be reset", true);
+      }
+    },
+    "Reset"
+  );
+});
+
+
+function renderAll() {
+  renderUsers();
+  renderHistory();
+  renderDashboard();
+  renderAnalytics();
+}
+
+/* ---------------- Admin ---------------- */
+function setAdmin(on) {
+  document.documentElement.dataset.admin = on ? "true" : "false";
+  try { localStorage.setItem("f4k-admin", on ? "1" : "0"); } catch (e) { /* storage blocked */ }
+  // If a guest somehow sits on the import page, bounce them out on logout
+  if (!on && currentPage === "import") showPage("settings");
+}
+
+$("adminLoginBtn")?.addEventListener("click", () => {
+  const code = $("adminCode").value;
+  if (code === ADMIN_CODE) {
+    setAdmin(true);
+    $("adminCode").value = "";
+    toast("Logged in as admin ✓");
+  } else {
+    toast("Incorrect passcode", true);
+  }
+});
+$("adminCode")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("adminLoginBtn").click(); }
+});
+$("adminLogoutBtn")?.addEventListener("click", () => {
+  setAdmin(false);
+  toast("Logged out");
+});
+$("goImportBtn")?.addEventListener("click", () => showPage("import"));
+
+/* ---------------- Theme ---------------- */
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("f4k-theme", t); } catch (e) { /* storage blocked */ }
+  const sw = $("themeSwitch");
+  if (sw) {
+    const dark = t === "dark";
+    sw.classList.toggle("on", dark);
+    sw.setAttribute("aria-checked", String(dark));
+  }
+}
+$("themeSwitch")?.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
+// Sync the switch UI with whatever the head script already applied
+applyTheme(document.documentElement.dataset.theme || "light");
+
+/* ---------------- Realtime sync ---------------- */
+onSnapshot(query(usersCollection), (snap) => {
+  users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderAll();
+});
+onSnapshot(query(checkinsCollection), (snap) => {
+  checkins = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderAll();
+});
+
+// Start on dashboard
+showPage("dashboard");
+console.log("Fit 4 The Kingdom dashboard loaded.");
