@@ -36,6 +36,9 @@
         <button class="nav-btn" data-page="dashboard">
           <span class="nav-ico">◈</span> Leaderboard
         </button>
+        <button class="nav-btn" data-page="analytics">
+          <span class="nav-ico">▨</span> Analytics
+        </button>
         <button class="nav-btn" data-page="checkin">
           <span class="nav-ico">＋</span> Check In
         </button>
@@ -127,6 +130,33 @@
             <span class="hint">total points logged per day</span>
           </div>
           <div id="momentumChart" class="momentum"></div>
+        </div>
+      </section>
+
+      <!-- ANALYTICS -->
+      <section id="analytics" class="page">
+        <header class="top-bar">
+          <div class="title-block">
+            <span class="eyebrow">Trends</span>
+            <h2>Step Analytics</h2>
+            <p>Monthly step totals for every member.</p>
+          </div>
+        </header>
+
+        <div class="cards" id="stepStatCards"></div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Monthly Steps by Member</h3>
+            <span class="hint">tap a name to show / hide</span>
+          </div>
+          <div id="stepLegend" class="chart-legend"></div>
+          <div id="stepChart" class="step-chart"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Month-by-Month Breakdown</h3><span class="hint">total steps · peak month highlighted</span></div>
+          <div id="stepTable" class="analytics-table"></div>
         </div>
       </section>
 
