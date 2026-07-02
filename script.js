@@ -43,7 +43,7 @@ let currentPage = "dashboard";
 
 // ⚠️ Change this passcode to your own. Note: this is a soft gate (the code is
 // visible in this file). For real enforcement, use Firebase Auth + Security Rules.
-const ADMIN_CODE = "Teammaile1!";
+const ADMIN_CODE = "kingdom2026";
 const isAdmin = () => document.documentElement.dataset.admin === "true";
 
 /* ---------------- Helpers ---------------- */
@@ -270,6 +270,130 @@ function renderMomentum(monthCheckins, selectedMonth) {
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none">${bars}</svg>
     <div style="display:flex;justify-content:space-between;color:var(--faint);font-size:11px;margin-top:6px">
       <span>Day 1</span><span>Day ${daysInMonth}</span></div>`;
+}
+
+/* ---------------- Step Analytics ---------------- */
+const CHART_COLORS = ["#2e9e5b", "#e8663a", "#d9a520", "#3a86c8", "#8b5cf6", "#e05a8f", "#14b8a6", "#b45309", "#6366f1", "#84cc16"];
+let analyticsHidden = new Set();
+
+const shortMonth = (key) => {
+  const [y, m] = key.split("-");
+  return new Date(y, m - 1).toLocaleDateString("en-US", { month: "short" }) + " '" + String(y).slice(2);
+};
+const fmtK = (v) => (v >= 1000 ? (Math.round((v / 1000) * 10) / 10).toString().replace(/\.0$/, "") + "k" : String(v));
+function niceStep(x) {
+  if (x <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(x)));
+  const f = x / mag;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+}
+
+function renderAnalytics() {
+  if (currentPage !== "analytics") return;
+
+  const cardsEl = $("stepStatCards"), legendEl = $("stepLegend"), chartEl = $("stepChart"), tableEl = $("stepTable");
+  if (!chartEl) return;
+
+  const months = [...new Set(checkins.map((c) => monthKey(c.date)))].sort();
+  const stepFor = (uid, mk) =>
+    checkins.filter((c) => c.userId === uid && monthKey(c.date) === mk).reduce((s, c) => s + (Number(c.steps) || 0), 0);
+
+  const members = users
+    .map((u) => ({ id: u.id, name: u.name, total: checkins.filter((c) => c.userId === u.id).reduce((s, c) => s + (Number(c.steps) || 0), 0) }))
+    .filter((m) => m.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  if (months.length === 0 || members.length === 0) {
+    cardsEl.innerHTML = "";
+    legendEl.innerHTML = "";
+    tableEl.innerHTML = "";
+    chartEl.innerHTML = `<div class="empty">No step data yet. Import steps and the trends will show up here.</div>`;
+    return;
+  }
+
+  const colorOf = {};
+  members.forEach((m, i) => (colorOf[m.id] = CHART_COLORS[i % CHART_COLORS.length]));
+
+  // ---- Stat cards ----
+  const grandTotal = members.reduce((s, m) => s + m.total, 0);
+  const thisMonth = months.includes(currentMonthKey()) ? currentMonthKey() : months[months.length - 1];
+  const thisMonthTotal = members.reduce((s, m) => s + stepFor(m.id, thisMonth), 0);
+  const monthTotals = months.map((mk) => ({ mk, total: members.reduce((s, m) => s + stepFor(m.id, mk), 0) }));
+  const best = monthTotals.reduce((a, b) => (b.total > a.total ? b : a), monthTotals[0]);
+  const top = members[0];
+  cardsEl.innerHTML = `
+    <div class="card"><span class="card-label">Total Steps</span><span class="card-value">${fmtK(grandTotal)}</span><span class="card-meta">all members, all time</span></div>
+    <div class="card"><span class="card-label">${formatMonth(thisMonth)}</span><span class="card-value">${fmtK(thisMonthTotal)}</span><span class="card-meta">group steps</span></div>
+    <div class="card"><span class="card-label">Best Month</span><span class="card-value">${fmtK(best.total)}</span><span class="card-meta">${formatMonth(best.mk)}</span></div>
+    <div class="card"><span class="card-label">Top Stepper</span><span class="card-value" style="font-size:22px;line-height:1.1;word-break:break-word">${escapeHtml(top.name)}</span><span class="card-meta">${top.total.toLocaleString()} steps</span></div>`;
+
+  // ---- Legend ----
+  legendEl.innerHTML = members
+    .map(
+      (m) => `<button class="legend-item ${analyticsHidden.has(m.id) ? "off" : ""}" data-series="${m.id}">
+        <span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</button>`
+    )
+    .join("");
+  legendEl.querySelectorAll(".legend-item").forEach((b) =>
+    b.addEventListener("click", () => {
+      const id = b.dataset.series;
+      analyticsHidden.has(id) ? analyticsHidden.delete(id) : analyticsHidden.add(id);
+      renderAnalytics();
+    })
+  );
+
+  // ---- Line chart ----
+  const visible = members.filter((m) => !analyticsHidden.has(m.id));
+  const W = 820, H = 360, padL = 54, padR = 18, padT = 16, padB = 38;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const rawMax = Math.max(1, ...visible.flatMap((m) => months.map((mk) => stepFor(m.id, mk))));
+  const tick = niceStep(rawMax / 4);
+  const yMax = Math.max(tick, Math.ceil(rawMax / tick) * tick);
+  const xFor = (i) => padL + (months.length === 1 ? plotW / 2 : (i / (months.length - 1)) * plotW);
+  const yFor = (v) => padT + plotH - (v / yMax) * plotH;
+
+  let grid = "";
+  for (let v = 0; v <= yMax + 0.5; v += tick) {
+    const y = yFor(v).toFixed(1);
+    grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--line)" stroke-width="1"/>`;
+    grid += `<text x="${padL - 8}" y="${(+y + 4).toFixed(1)}" text-anchor="end" style="fill:var(--faint)" font-size="11">${fmtK(v)}</text>`;
+  }
+  const xlabels = months
+    .map((mk, i) => `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 22}" text-anchor="middle" style="fill:var(--muted)" font-size="11">${shortMonth(mk)}</text>`)
+    .join("");
+
+  let series = "";
+  visible.forEach((m) => {
+    const pts = months.map((mk, i) => `${xFor(i).toFixed(1)},${yFor(stepFor(m.id, mk)).toFixed(1)}`);
+    if (months.length > 1)
+      series += `<polyline points="${pts.join(" ")}" fill="none" stroke="${colorOf[m.id]}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    months.forEach((mk, i) => {
+      const v = stepFor(m.id, mk);
+      series += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="3.6" fill="${colorOf[m.id]}"><title>${escapeHtml(m.name)} — ${formatMonth(mk)}: ${v.toLocaleString()} steps</title></circle>`;
+    });
+  });
+
+  chartEl.innerHTML = visible.length
+    ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${grid}${xlabels}${series}</svg>`
+    : `<div class="empty">All members hidden — tap a name above to bring them back.</div>`;
+
+  // ---- Breakdown table ----
+  const cell = (v) => (v > 0 ? v.toLocaleString() : "—");
+  const rows = members
+    .map((m) => {
+      const vals = months.map((mk) => stepFor(m.id, mk));
+      const peak = Math.max(...vals);
+      const tds = vals.map((v) => `<td class="num ${v === peak && v > 0 ? "peak" : ""}">${cell(v)}</td>`).join("");
+      return `<tr><td class="mem"><span class="legend-swatch" style="background:${colorOf[m.id]}"></span>${escapeHtml(m.name)}</td>${tds}<td class="num tot">${m.total.toLocaleString()}</td></tr>`;
+    })
+    .join("");
+  const foot = months.map((mk) => `<td class="num">${monthTotals.find((x) => x.mk === mk).total.toLocaleString()}</td>`).join("");
+  tableEl.innerHTML = `
+    <table>
+      <thead><tr><th>Member</th>${months.map((mk) => `<th class="num">${shortMonth(mk)}</th>`).join("")}<th class="num">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td class="mem">Group</td>${foot}<td class="num tot">${grandTotal.toLocaleString()}</td></tr></tfoot>
+    </table>`;
 }
 
 /* ---------------- Wins ---------------- */
@@ -848,6 +972,7 @@ function renderAll() {
   renderUsers();
   renderHistory();
   renderDashboard();
+  renderAnalytics();
 }
 
 /* ---------------- Admin ---------------- */
