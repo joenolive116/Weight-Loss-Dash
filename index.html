@@ -155,8 +155,16 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h3>Month-by-Month Breakdown</h3><span class="hint">total steps · peak month highlighted</span></div>
+          <div class="panel-head"><h3>Month-by-Month Breakdown</h3><span class="hint">total steps · peak month highlighted · tap a month for daily detail</span></div>
           <div id="stepTable" class="analytics-table"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Daily Breakdown</h3>
+            <select id="dayMonthFilter" class="inline-select"></select>
+          </div>
+          <div id="dayTable" class="analytics-table"></div>
         </div>
       </section>
 
