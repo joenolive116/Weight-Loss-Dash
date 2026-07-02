@@ -36,8 +36,8 @@
         <button class="nav-btn" data-page="dashboard">
           <span class="nav-ico">◈</span> Leaderboard
         </button>
-        <button class="nav-btn" data-page="analytics">
-          <span class="nav-ico">▨</span> Analytics
+        <button class="nav-btn" data-page="coach">
+          <span class="nav-ico">&#10022;</span> Coach
         </button>
         <button class="nav-btn" data-page="checkin">
           <span class="nav-ico">＋</span> Check In
@@ -133,38 +133,43 @@
         </div>
       </section>
 
-      <!-- ANALYTICS -->
-      <section id="analytics" class="page">
+      <!-- PROFILE (opened by tapping a member) -->
+      <section id="profile" class="page">
+        <button class="back-btn" id="profileBack">‹ Back to leaderboard</button>
+        <div class="profile-head">
+          <div id="profileAvatar" class="profile-avatar-wrap"></div>
+          <div class="profile-id">
+            <h2 id="profileName">—</h2>
+            <div class="profile-stats" id="profileStats"></div>
+          </div>
+          <button class="ghost-btn admin-only" id="profilePhotoBtn">Change photo</button>
+          <input type="file" id="profilePhotoInput" accept="image/*" hidden />
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Steps by Month</h3><span class="hint">tap a month for daily detail</span></div>
+          <div id="profileMonths" class="profile-months"></div>
+        </div>
+      </section>
+
+      <!-- COACH -->
+      <section id="coach" class="page">
         <header class="top-bar">
           <div class="title-block">
-            <span class="eyebrow">Trends</span>
-            <h2>Step Analytics</h2>
-            <p>Monthly step totals for every member.</p>
+            <span class="eyebrow">Ask</span>
+            <h2>Team Coach</h2>
+            <p>Questions about the group’s stats, or general health and fitness.</p>
           </div>
         </header>
 
-        <div class="cards" id="stepStatCards"></div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h3>Monthly Steps by Member</h3>
-            <span class="hint">tap a name to show / hide</span>
+        <div class="panel coach-panel">
+          <div id="coachLog" class="coach-log">
+            <div class="coach-msg assistant">Hi! Ask me about the group’s progress, or anything about steps, workouts, and healthy habits.</div>
           </div>
-          <div id="stepLegend" class="chart-legend"></div>
-          <div id="stepChart" class="step-chart"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><h3>Month-by-Month Breakdown</h3><span class="hint">total steps · peak month highlighted · tap a month for daily detail</span></div>
-          <div id="stepTable" class="analytics-table"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h3>Daily Breakdown</h3>
-            <select id="dayMonthFilter" class="inline-select"></select>
+          <div class="coach-input-row">
+            <textarea id="coachInput" placeholder="e.g. Who has the longest streak? or How do I hit 10k steps a day?" rows="1"></textarea>
+            <button id="coachSend" class="primary-btn btn-inline"><span>Send</span></button>
           </div>
-          <div id="dayTable" class="analytics-table"></div>
         </div>
       </section>
 
