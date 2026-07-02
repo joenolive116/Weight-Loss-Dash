@@ -310,7 +310,7 @@ textarea { min-height: 92px; resize: vertical; }
 .leaderboard { display: flex; flex-direction: column; gap: 8px; }
 .leader-row {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 44px 1fr auto 16px;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -677,6 +677,74 @@ html[data-admin="true"] .guest-only { display: none !important; }
 .theme-switch.on .switch-thumb { transform: translateX(32px); }
 .theme-switch.on .switch-ico.moon { color: var(--gold); }
 .theme-switch.on .switch-ico.sun { color: var(--faint); }
+
+/* ---------- Photo avatars ---------- */
+.has-photo { background-size: cover; background-position: center; color: transparent !important; }
+.leader-go { color: var(--faint); text-align: center; font-size: 20px; }
+.user-row { cursor: pointer; }
+
+/* ---------- Member Profile ---------- */
+.back-btn {
+  background: none; border: none; color: var(--muted); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 4px 0; margin-bottom: 18px; font-size: 14px;
+}
+.back-btn:hover { color: var(--text); }
+.profile-head {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.profile-avatar {
+  width: 84px; height: 84px; border-radius: 24px;
+  display: grid; place-items: center; flex-shrink: 0;
+  background: var(--lime-soft); color: var(--lime);
+  font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 32px;
+  border: 2px solid var(--line-strong);
+}
+.profile-id { flex: 1; min-width: 200px; }
+.profile-id h2 {
+  font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+  font-size: 32px; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 8px;
+}
+.profile-stats { display: flex; flex-wrap: wrap; gap: 16px; }
+.pstat { font-size: 13px; color: var(--muted); }
+.pstat b { color: var(--text); font-family: "Space Mono", monospace; font-size: 16px; margin-right: 4px; }
+
+.profile-months { display: flex; flex-direction: column; gap: 10px; }
+.pmonth { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--inset); }
+.pmonth-head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 15px 16px; border: none; background: none; color: var(--text);
+  font: inherit; cursor: pointer; text-align: left;
+}
+.pmonth-name { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 16px; flex: 1; }
+.pmonth-meta { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); }
+.pmonth-caret { color: var(--faint); transition: transform 0.2s ease; }
+.pmonth.open .pmonth-caret { transform: rotate(180deg); }
+.pmonth-days { display: none; padding: 4px 10px 12px; }
+.pmonth.open .pmonth-days { display: block; }
+.pday {
+  display: grid; grid-template-columns: 70px 1fr auto auto; align-items: center; gap: 12px;
+  padding: 10px 8px; border-top: 1px solid var(--line);
+}
+.pday:first-child { border-top: none; }
+.pday-date { font-family: "Space Mono", monospace; font-weight: 700; font-size: 13px; }
+.pday-date span { color: var(--faint); font-family: "Hanken Grotesk", sans-serif; font-weight: 600; font-size: 11px; margin-left: 6px; text-transform: uppercase; }
+.pday-badges { display: flex; gap: 5px; }
+.pday-steps { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); text-align: right; }
+.pday-pts { font-family: "Space Mono", monospace; font-weight: 700; color: var(--lime); min-width: 34px; text-align: right; }
+
+/* ---------- Coach ---------- */
+.coach-panel { display: flex; flex-direction: column; height: min(70vh, 620px); }
+.coach-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
+.coach-msg {
+  max-width: 82%; padding: 12px 15px; border-radius: 16px; font-size: 14px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
+.coach-msg.assistant { align-self: flex-start; background: var(--inset); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.coach-msg.user { align-self: flex-end; background: var(--lime-soft); border: 1px solid rgba(120, 190, 20, 0.3); border-bottom-right-radius: 5px; }
+.coach-msg.temp { opacity: 0.6; }
+.coach-input-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 14px; }
+.coach-input-row textarea { flex: 1; min-height: 46px; max-height: 140px; resize: none; }
 
 /* ---------- Toast ---------- */
 .toast {
