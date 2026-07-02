@@ -581,6 +581,49 @@ textarea { min-height: 92px; resize: vertical; }
   .map-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- Analytics ---------- */
+.step-chart { width: 100%; }
+.step-chart svg { width: 100%; height: auto; display: block; }
+
+.chart-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.legend-item {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--inset);
+  color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+.legend-item:hover { border-color: var(--line-strong); }
+.legend-item.off { opacity: 0.4; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 4px; display: inline-block; flex-shrink: 0; }
+
+.analytics-table { overflow: auto; border-radius: 12px; border: 1px solid var(--line); max-height: 480px; }
+.analytics-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.analytics-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel-solid); color: var(--muted);
+  text-align: left; padding: 11px 14px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.analytics-table th.num, .analytics-table td.num { text-align: right; font-family: "Space Mono", monospace; }
+.analytics-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.analytics-table td.mem { font-weight: 600; }
+.analytics-table td.mem .legend-swatch { margin-right: 8px; vertical-align: middle; }
+.analytics-table th:first-child, .analytics-table td:first-child {
+  position: sticky; left: 0; background: var(--panel-solid);
+}
+.analytics-table th:first-child { z-index: 2; }
+.analytics-table .peak { color: var(--lime); font-weight: 700; }
+.analytics-table .tot { font-weight: 700; color: var(--text); }
+.analytics-table tbody tr:hover td { background: var(--hover); }
+.analytics-table tfoot td {
+  position: sticky; bottom: 0;
+  border-top: 2px solid var(--line-strong); border-bottom: none;
+  font-weight: 700; color: var(--muted); background: var(--panel-solid);
+}
+.analytics-table tfoot td.mem { color: var(--text); }
+
 /* ---------- Admin gating ---------- */
 html:not([data-admin="true"]) .admin-only { display: none !important; }
 html[data-admin="true"] .guest-only { display: none !important; }
