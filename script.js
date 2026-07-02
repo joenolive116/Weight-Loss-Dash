@@ -140,6 +140,10 @@ function populateMonthFilter() {
   if (prev && months.includes(prev)) sel.value = prev;
 }
 $("monthFilter").addEventListener("change", renderDashboard);
+$("dayMonthFilter")?.addEventListener("change", (e) => {
+  analyticsDayMonth = e.target.value;
+  renderAnalytics();
+});
 
 /* ---------------- Dashboard ---------------- */
 function renderDashboard() {
@@ -275,6 +279,7 @@ function renderMomentum(monthCheckins, selectedMonth) {
 /* ---------------- Step Analytics ---------------- */
 const CHART_COLORS = ["#2e9e5b", "#e8663a", "#d9a520", "#3a86c8", "#8b5cf6", "#e05a8f", "#14b8a6", "#b45309", "#6366f1", "#84cc16"];
 let analyticsHidden = new Set();
+let analyticsDayMonth = null;
 
 const shortMonth = (key) => {
   const [y, m] = key.split("-");
@@ -390,9 +395,75 @@ function renderAnalytics() {
   const foot = months.map((mk) => `<td class="num">${monthTotals.find((x) => x.mk === mk).total.toLocaleString()}</td>`).join("");
   tableEl.innerHTML = `
     <table>
-      <thead><tr><th>Member</th>${months.map((mk) => `<th class="num">${shortMonth(mk)}</th>`).join("")}<th class="num">Total</th></tr></thead>
+      <thead><tr><th>Member</th>${months
+        .map((mk) => `<th class="num month-h ${mk === analyticsDayMonth ? "sel" : ""}" data-month="${mk}" title="View daily breakdown">${shortMonth(mk)}</th>`)
+        .join("")}<th class="num">Total</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td class="mem">Group</td>${foot}<td class="num tot">${grandTotal.toLocaleString()}</td></tr></tfoot>
+    </table>`;
+  tableEl.querySelectorAll("[data-month]").forEach((th) =>
+    th.addEventListener("click", () => {
+      analyticsDayMonth = th.dataset.month;
+      renderAnalytics();
+      $("dayTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    })
+  );
+
+  // ---- Daily breakdown (drill-down into one month) ----
+  const dfilter = $("dayMonthFilter");
+  if (!analyticsDayMonth || !months.includes(analyticsDayMonth)) analyticsDayMonth = months[months.length - 1];
+  if (dfilter) {
+    dfilter.innerHTML = months
+      .slice()
+      .reverse()
+      .map((mk) => `<option value="${mk}">${formatMonth(mk)}</option>`)
+      .join("");
+    dfilter.value = analyticsDayMonth;
+  }
+
+  const [dy, dm] = analyticsDayMonth.split("-").map(Number);
+  const monthChk = checkins.filter((c) => monthKey(c.date) === analyticsDayMonth);
+  const dayMap = {}; // "day|userId" -> steps
+  monthChk.forEach((c) => {
+    const day = new Date(c.date).getDate();
+    const k = day + "|" + c.userId;
+    dayMap[k] = (dayMap[k] || 0) + (Number(c.steps) || 0);
+  });
+  const dget = (uid, day) => dayMap[day + "|" + uid] || 0;
+  const daysInMonth = new Date(dy, dm, 0).getDate();
+  let lastDay = 0;
+  for (let d = 1; d <= daysInMonth; d++) if (members.some((m) => dget(m.id, d) > 0)) lastDay = d;
+
+  const dayTableEl = $("dayTable");
+  if (lastDay === 0) {
+    dayTableEl.innerHTML = `<div class="empty">No step data for ${formatMonth(analyticsDayMonth)} yet.</div>`;
+    return;
+  }
+
+  const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const memTotal = (uid) => monthChk.filter((c) => c.userId === uid).reduce((s, c) => s + (Number(c.steps) || 0), 0);
+  let dayRows = "";
+  for (let d = 1; d <= lastDay; d++) {
+    const wd = dow[new Date(dy, dm - 1, d).getDay()];
+    const isWeekend = wd === "Sat" || wd === "Sun";
+    const vals = members.map((m) => dget(m.id, d));
+    const dmax = Math.max(...vals);
+    const cells = vals
+      .map((v) => `<td class="num ${v === dmax && v > 0 ? "peak" : ""}">${v > 0 ? v.toLocaleString() : "—"}</td>`)
+      .join("");
+    const dtot = vals.reduce((s, v) => s + v, 0);
+    dayRows += `<tr class="${isWeekend ? "weekend" : ""}"><td class="day">${dm}/${d}<span class="dow">${wd}</span></td>${cells}<td class="num tot">${dtot > 0 ? dtot.toLocaleString() : "—"}</td></tr>`;
+  }
+  const dayFoot = members.map((m) => `<td class="num">${memTotal(m.id).toLocaleString()}</td>`).join("");
+  const dayGrand = members.reduce((s, m) => s + memTotal(m.id), 0);
+  const dayHead = members
+    .map((m) => `<th class="num"><span class="legend-swatch" style="background:${colorOf[m.id]};margin-right:6px;vertical-align:middle"></span>${escapeHtml(m.name)}</th>`)
+    .join("");
+  dayTableEl.innerHTML = `
+    <table>
+      <thead><tr><th>Day</th>${dayHead}<th class="num">Daily Total</th></tr></thead>
+      <tbody>${dayRows}</tbody>
+      <tfoot><tr><td class="mem">Total</td>${dayFoot}<td class="num tot">${dayGrand.toLocaleString()}</td></tr></tfoot>
     </table>`;
 }
 
